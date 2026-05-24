@@ -1,0 +1,31 @@
+
+> ritatu@1.0.0 start
+> expo start --port 8081
+
+Starting project at C:\Users\stani.CHM-DESKTOP\Desktop\Ritatu
+Starting Metro Bundler
+
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+iOS Bundled 15272ms index.ts (723 modules)
+iOS Bundled 49ms index.ts (1 module)
+iOS Bundled 39ms index.ts (1 module)
+iOS Bundled 37ms index.ts (1 module)
+Web Bundling failed 5534ms index.ts (99 modules)
+Unable to resolve "react-native-web/dist/exports/Text" from "App.tsx"
+[0m[31m[1m>[22m[39m[90m 1 |[39m [36mimport[39m { [33mStatusBar[39m } [36mfrom[39m [32m'expo-status-bar'[39m[33m;[39m
+ [90m 2 |[39m [36mimport[39m { [33mStyleSheet[39m[33m,[39m [33mText[39m[33m,[39m [33mView[39m } [36mfrom[39m [32m'react-native'[39m[33m;[39m
+ [90m 3 |[39m
+ [90m 4 |[39m [36mexport[39m [36mdefault[39m [36mfunction[39m [33mApp[39m() {[0m
+
+Import stack:
+
+ App.tsx
+ | import "react-native-web/dist/exports/Text"
+
+ index.ts
+ | import "./App"
+
+ 
+ | import "./index"
+
