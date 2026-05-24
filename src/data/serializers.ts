@@ -16,6 +16,7 @@ export const profileFromDoc = (data: Record<string, unknown>): UserProfile => ({
   email: String(data.email),
   displayName: (data.displayName as string | null | undefined) ?? null,
   weightKg: (data.weightKg as number | null | undefined) ?? null,
+  targetWeightKg: (data.targetWeightKg as number | null | undefined) ?? null,
   heightCm: (data.heightCm as number | null | undefined) ?? null,
   age: (data.age as number | null | undefined) ?? null,
   gender: (data.gender as UserProfile["gender"] | null | undefined) ?? null,

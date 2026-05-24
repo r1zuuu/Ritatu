@@ -7,6 +7,8 @@ type TextFieldProps = {
   onChangeText: (value: string) => void;
   placeholder?: string;
   keyboardType?: KeyboardTypeOptions;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 };
 
 export const TextField = ({
@@ -15,11 +17,14 @@ export const TextField = ({
   onChangeText,
   placeholder,
   keyboardType = "default",
+  accessibilityLabel,
+  accessibilityHint,
 }: TextFieldProps) => (
   <View style={styles.wrap}>
     <Text style={styles.label}>{label}</Text>
     <TextInput
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel || label}
+      accessibilityHint={accessibilityHint}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
