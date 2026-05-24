@@ -1,14 +1,17 @@
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import { Button } from "../components/Button";
+import { Icon } from "../components/Icon";
 import { MacroConfirmSheet } from "../components/MacroConfirmSheet";
 import { Screen } from "../components/Screen";
 import type { MealDraft } from "../data/types";
+import { getDeveloperSettings } from "../data/developerRepository";
 import { useMeals } from "../providers/MealsProvider";
 import { lookupProductByBarcode, type ProductLookupResult } from "../services/openFoodFactsService";
 import { colors } from "../theme/colors";
+import { typography } from "../theme/typography";
 
 type LookupError = Extract<ProductLookupResult, { ok: false }>;
 
@@ -20,6 +23,7 @@ const statusTitle: Record<LookupError["status"], string> = {
 
 export const BarcodeScanScreen = () => {
   const { addMeal } = useMeals();
+  const params = useLocalSearchParams<{ section?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [loading, setLoading] = useState(false);
   const [lookupError, setLookupError] = useState<LookupError | null>(null);
@@ -64,7 +68,10 @@ export const BarcodeScanScreen = () => {
   const goManual = (barcode?: string) => {
     router.replace({
       pathname: "/add-meal/manual",
-      params: barcode ? { barcode } : undefined,
+      params: {
+        ...(barcode ? { barcode } : {}),
+        ...(params.section ? { section: params.section } : {}),
+      },
     });
   };
 
@@ -75,10 +82,27 @@ export const BarcodeScanScreen = () => {
     setLookupError(null);
     setLoading(true);
 
+    const settings = await getDeveloperSettings();
+    if (settings.mockBarcodeEnabled) {
+      setDraft({
+        name: "Produkt testowy",
+        weightG: 100,
+        proteinPer100g: 12,
+        carbsPer100g: 18,
+        fatPer100g: 4,
+        source: "barcode",
+        barcode: data,
+        section: params.section ?? null,
+        note: "Wynik mock z panelu developerskiego.",
+      });
+      setLoading(false);
+      return;
+    }
+
     const result = await lookupProductByBarcode(data);
 
     if (result.ok) {
-      setDraft(result.draft);
+      setDraft({ ...result.draft, section: params.section ?? null });
     } else {
       setLookupError(result);
     }
@@ -138,6 +162,14 @@ export const BarcodeScanScreen = () => {
 
   return (
     <View style={styles.wrap}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Wróć"
+        style={({ pressed }) => [styles.back, pressed && styles.pressed]}
+        onPress={() => router.back()}
+      >
+        <Icon name="chevron-left" size={22} color={colors.paper} />
+      </Pressable>
       <CameraView
         accessibilityLabel="Skaner kodow kreskowych"
         style={styles.camera}
@@ -177,17 +209,22 @@ export const BarcodeScanScreen = () => {
 
           {lookupError ? (
             <View style={styles.errorBox}>
-              <Text style={styles.errorTitle}>{statusTitle[lookupError.status]}</Text>
+              <View style={styles.errorTitleRow}>
+                <Icon name="alert" size={18} color={colors.danger} />
+                <Text style={styles.errorTitle}>{statusTitle[lookupError.status]}</Text>
+              </View>
               <Text style={styles.errorText}>{lookupError.warning}</Text>
               <View style={styles.actions}>
                 <Button
                   title="Skanuj ponownie"
+                  icon="scan"
                   variant="secondary"
                   onPress={resetScan}
                   accessibilityHint="Wraca do aktywnego skanowania"
                 />
                 <Button
                   title="Wpisz recznie"
+                  icon="plus"
                   onPress={() => goManual(lookupError.barcode)}
                   accessibilityHint="Przechodzi do formularza recznego wpisania makro"
                 />
@@ -316,16 +353,16 @@ const styles = StyleSheet.create({
   panel: {
     minHeight: 112,
     borderRadius: 16,
-    backgroundColor: colors.paper,
+    backgroundColor: "rgba(19, 19, 26, 0.92)",
+    borderWidth: 1,
+    borderColor: colors.borderMid,
     padding: 14,
     justifyContent: "center",
     gap: 12,
   },
   panelText: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: "800",
-    lineHeight: 21,
+    ...typography.body,
+    color: colors.paper,
   },
   statusRow: {
     flexDirection: "row",
@@ -335,15 +372,18 @@ const styles = StyleSheet.create({
   errorBox: {
     gap: 10,
   },
+  errorTitleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
   errorTitle: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "900",
+    ...typography.section,
+    color: colors.paper,
   },
   errorText: {
-    color: colors.muted,
-    fontWeight: "800",
-    lineHeight: 21,
+    ...typography.body,
+    color: colors.mutedMid,
   },
   actions: {
     gap: 10,
@@ -354,14 +394,29 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   permissionTitle: {
+    ...typography.title,
     color: colors.text,
-    fontSize: 28,
-    fontWeight: "900",
   },
   permissionBody: {
+    ...typography.body,
     color: colors.muted,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 23,
+  },
+  back: {
+    alignItems: "center",
+    backgroundColor: "rgba(19,19,26,0.72)",
+    borderColor: colors.borderMid,
+    borderRadius: 14,
+    borderWidth: 1,
+    height: 44,
+    justifyContent: "center",
+    left: 18,
+    position: "absolute",
+    top: 52,
+    width: 44,
+    zIndex: 5,
+  },
+  pressed: {
+    opacity: 0.86,
+    transform: [{ scale: 0.96 }],
   },
 });

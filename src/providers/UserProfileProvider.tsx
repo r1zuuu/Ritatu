@@ -1,4 +1,4 @@
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   createBaseProfile,
   upsertUserProfile,
@@ -53,14 +53,14 @@ export const UserProfileProvider = ({ children }: PropsWithChildren) => {
     );
   }, [user]);
 
+  const saveProfile = useCallback(async (next: UserProfile) => {
+    await upsertUserProfile(next);
+    setProfile(next);
+  }, []);
+
   const value = useMemo(
-    () => ({
-      profile,
-      loading,
-      error,
-      saveProfile: upsertUserProfile,
-    }),
-    [error, loading, profile],
+    () => ({ profile, loading, error, saveProfile }),
+    [error, loading, profile, saveProfile],
   );
 
   return <UserProfileContext.Provider value={value}>{children}</UserProfileContext.Provider>;

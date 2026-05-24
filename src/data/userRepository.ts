@@ -1,41 +1,37 @@
-import type { User } from "firebase/auth";
-import { doc, getDoc, onSnapshot, setDoc, type Unsubscribe } from "firebase/firestore";
-import { db } from "../services/firebase";
-import { profileFromDoc, profileToDoc } from "./serializers";
-import type { UserProfile } from "./types";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { LocalUser, UserProfile } from "./types";
 
-const ensureDb = () => {
-  if (!db) throw new Error("Firebase nie jest skonfigurowany.");
-  return db;
-};
+const PROFILE_KEY = "ritatu:profile";
 
-export const createBaseProfile = (user: User): UserProfile => ({
+export const createBaseProfile = (user: LocalUser): UserProfile => ({
   uid: user.uid,
-  email: user.email ?? "",
+  email: user.email,
   displayName: user.displayName,
   onboardingDone: false,
 });
 
-export const getUserProfile = async (uid: string) => {
-  const ref = doc(ensureDb(), "users", uid);
-  const snapshot = await getDoc(ref);
-  return snapshot.exists() ? profileFromDoc(snapshot.data()) : null;
+const parseProfile = (val: string | null): UserProfile | null => {
+  if (!val) return null;
+  try {
+    const data = JSON.parse(val) as UserProfile & { targetDate?: string | null };
+    return { ...data, targetDate: data.targetDate ? new Date(data.targetDate) : null };
+  } catch {
+    return null;
+  }
 };
 
-export const upsertUserProfile = async (profile: UserProfile) => {
-  const ref = doc(ensureDb(), "users", profile.uid);
-  await setDoc(ref, profileToDoc(profile), { merge: true });
+export const getUserProfile = async (): Promise<UserProfile | null> =>
+  parseProfile(await AsyncStorage.getItem(PROFILE_KEY));
+
+export const upsertUserProfile = async (profile: UserProfile): Promise<void> => {
+  await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
 };
 
 export const watchUserProfile = (
-  uid: string,
+  _uid: string,
   onChange: (profile: UserProfile | null) => void,
   onError: (error: Error) => void,
-): Unsubscribe => {
-  const ref = doc(ensureDb(), "users", uid);
-  return onSnapshot(
-    ref,
-    (snapshot) => onChange(snapshot.exists() ? profileFromDoc(snapshot.data()) : null),
-    onError,
-  );
+): (() => void) => {
+  getUserProfile().then(onChange).catch(onError);
+  return () => {};
 };

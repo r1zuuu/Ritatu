@@ -1,4 +1,8 @@
-import type { Timestamp } from "firebase/firestore";
+export type LocalUser = {
+  uid: string;
+  email: string;
+  displayName: string | null;
+};
 
 export type MealSource = "barcode" | "photo" | "manual";
 export type Gender = "male" | "female";
@@ -17,12 +21,32 @@ export type MealEntry = {
   fatPer100g: number;
   timestamp: Date;
   source: MealSource;
+  section?: string | null;
   barcode?: string | null;
   photoUrl?: string | null;
 };
 
-export type MealEntryDocument = Omit<MealEntry, "timestamp"> & {
-  timestamp: Timestamp;
+export type WeightEntry = {
+  id: string;
+  date: string;
+  weightKg: number;
+};
+
+export type ProgressPhotoAngle = "front" | "side" | "back" | "other";
+
+export type ProgressPhoto = {
+  id: string;
+  uri: string;
+  createdAt: Date;
+  angle: ProgressPhotoAngle;
+  note?: string | null;
+  weightKg?: number | null;
+};
+
+export type DeveloperSettings = {
+  mockBarcodeEnabled: boolean;
+  mockPhotoAiEnabled: boolean;
+  seededDemoDataAt?: Date | null;
 };
 
 export type MealDraft = {
@@ -32,6 +56,7 @@ export type MealDraft = {
   carbsPer100g: number;
   fatPer100g: number;
   source: MealSource;
+  section?: string | null;
   barcode?: string | null;
   photoUrl?: string | null;
   note?: string | null;

@@ -2,6 +2,14 @@ import type { MealDraft } from "../data/types";
 
 const OPEN_FOOD_FACTS_BASE_URL = "https://world.openfoodfacts.org";
 const PRODUCT_FIELDS = ["code", "product_name", "nutriments", "image_front_url"].join(",");
+const SEARCH_FIELDS = [
+  "code",
+  "product_name",
+  "brands",
+  "quantity",
+  "nutriments",
+  "image_front_url",
+].join(",");
 const USER_AGENT = "Ritatu/1.0 (contact: ritatu-app-local)";
 
 type OpenFoodFactsProduct = {
@@ -21,6 +29,24 @@ type OpenFoodFactsProduct = {
   };
 };
 
+type OpenFoodFactsSearchProduct = {
+  code?: string;
+  product_name?: string;
+  brands?: string;
+  quantity?: string;
+  image_front_url?: string;
+  nutriments?: {
+    "energy-kcal_100g"?: number;
+    proteins_100g?: number;
+    carbohydrates_100g?: number;
+    fat_100g?: number;
+  };
+};
+
+type OpenFoodFactsSearchResponse = {
+  products?: OpenFoodFactsSearchProduct[];
+};
+
 export type ProductLookupResult =
   | { ok: true; status: "found"; draft: MealDraft; warning?: string }
   | {
@@ -32,6 +58,90 @@ export type ProductLookupResult =
 
 const isNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
+
+export type OpenFoodFactsSearchItem = {
+  code: string;
+  name: string;
+  detail: string;
+  calories: number;
+  proteinPer100g: number;
+  carbsPer100g: number;
+  fatPer100g: number;
+  imageUrl?: string | null;
+};
+
+const productToSearchItem = (
+  product: OpenFoodFactsSearchProduct,
+): OpenFoodFactsSearchItem | null => {
+  const name = product.product_name?.trim();
+  const nutriments = product.nutriments;
+  const calories = nutriments?.["energy-kcal_100g"];
+  const protein = nutriments?.proteins_100g;
+  const carbs = nutriments?.carbohydrates_100g;
+  const fat = nutriments?.fat_100g;
+
+  if (
+    !product.code ||
+    !name ||
+    !isNumber(calories) ||
+    !isNumber(protein) ||
+    !isNumber(carbs) ||
+    !isNumber(fat)
+  ) {
+    return null;
+  }
+
+  const detailParts = [product.quantity, product.brands].filter(Boolean);
+
+  return {
+    code: product.code,
+    name,
+    detail: detailParts.length > 0 ? detailParts.join(" · ") : "100 g",
+    calories,
+    proteinPer100g: protein,
+    carbsPer100g: carbs,
+    fatPer100g: fat,
+    imageUrl: product.image_front_url ?? null,
+  };
+};
+
+export const searchProductsByName = async (
+  query: string,
+): Promise<OpenFoodFactsSearchItem[]> => {
+  const trimmed = query.trim();
+  if (trimmed.length < 3) return [];
+
+  const params = new URLSearchParams({
+    search_terms: trimmed,
+    search_simple: "1",
+    action: "process",
+    json: "1",
+    page_size: "20",
+    fields: SEARCH_FIELDS,
+  });
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${OPEN_FOOD_FACTS_BASE_URL}/cgi/search.pl?${params.toString()}`, {
+      headers: {
+        // RN/Expo native can pass User-Agent; web targets may ignore it.
+        "User-Agent": USER_AGENT,
+      },
+    });
+  } catch {
+    throw new Error("Nie udało się połączyć z Open Food Facts.");
+  }
+
+  if (!response.ok) {
+    throw new Error("Open Food Facts nie odpowiedziało poprawnie.");
+  }
+
+  const data = (await response.json()) as OpenFoodFactsSearchResponse;
+  return (data.products ?? [])
+    .map(productToSearchItem)
+    .filter((item): item is OpenFoodFactsSearchItem => Boolean(item));
+};
 
 export const lookupProductByBarcode = async (
   barcode: string,

@@ -1,11 +1,14 @@
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Icon, type IconName } from "./Icon";
 import { colors } from "../theme/colors";
+import { typography } from "../theme/typography";
 
 type ButtonProps = {
   title: string;
   onPress: () => void;
   variant?: "primary" | "secondary" | "ghost" | "danger";
   disabled?: boolean;
+  icon?: IconName;
   accessibilityHint?: string;
 };
 
@@ -14,6 +17,7 @@ export const Button = ({
   onPress,
   variant = "primary",
   disabled = false,
+  icon,
   accessibilityHint,
 }: ButtonProps) => (
   <Pressable
@@ -30,17 +34,32 @@ export const Button = ({
       pressed && !disabled && styles.pressed,
     ]}
   >
-    <Text style={[styles.label, variant === "danger" && styles.dangerLabel]}>{title}</Text>
+    <View style={styles.content}>
+      {icon ? (
+        <Icon
+          name={icon}
+          size={18}
+          color={variant === "primary" ? colors.warmBlack : colors.text}
+        />
+      ) : null}
+      <Text style={[styles.label, variant !== "primary" && styles.lightLabel]}>{title}</Text>
+    </View>
   </Pressable>
 );
 
 const styles = StyleSheet.create({
   button: {
     minHeight: 52,
-    borderRadius: 8,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 18,
+  },
+  content: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
   },
   primary: {
     backgroundColor: colors.accent,
@@ -57,12 +76,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.danger,
   },
   label: {
+    ...typography.button,
     color: colors.warmBlack,
-    fontSize: 16,
-    fontWeight: "800",
   },
-  dangerLabel: {
-    color: colors.surface,
+  lightLabel: {
+    color: colors.text,
   },
   disabled: {
     opacity: 0.45,

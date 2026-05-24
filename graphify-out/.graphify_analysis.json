@@ -1,0 +1,576 @@
+{
+  "communities": {
+    "0": [
+      "app_add_meal_barcode_tsx",
+      "app_add_meal_index_tsx",
+      "app_add_meal_manual_tsx",
+      "app_add_meal_photo_tsx",
+      "app_history_tsx",
+      "app_login_tsx",
+      "components_button_button",
+      "components_button_buttonprops",
+      "components_button_styles",
+      "components_macroconfirmsheet_macroconfirmsheet",
+      "components_macroconfirmsheet_macroconfirmsheetprops",
+      "components_macroconfirmsheet_styles",
+      "components_macroconfirmsheet_tonumber",
+      "components_screen_screen",
+      "components_screen_screenprops",
+      "components_screen_styles",
+      "components_textfield_styles",
+      "components_textfield_textfield",
+      "components_textfield_textfieldprops",
+      "data_types_mealdraft",
+      "providers_mealsprovider_usemeals",
+      "screens_addmealscreen_addmealscreen",
+      "screens_addmealscreen_styles",
+      "screens_barcodescanscreen_barcodescanscreen",
+      "screens_barcodescanscreen_lookuperror",
+      "screens_barcodescanscreen_statustitle",
+      "screens_barcodescanscreen_styles",
+      "screens_historyscreen_historyscreen",
+      "screens_historyscreen_styles",
+      "screens_loginscreen_loginscreen",
+      "screens_loginscreen_styles",
+      "screens_manualentryscreen_manualentryscreen",
+      "screens_manualentryscreen_num",
+      "screens_manualentryscreen_styles",
+      "screens_photoscanscreen_photoscanscreen",
+      "screens_photoscanscreen_styles",
+      "screens_profilescreen_styles",
+      "services_openfoodfactsservice_isnumber",
+      "services_openfoodfactsservice_lookupproductbybarcode",
+      "services_openfoodfactsservice_openfoodfactsproduct",
+      "services_openfoodfactsservice_product_fields",
+      "services_openfoodfactsservice_productlookupresult",
+      "src_components_button_tsx",
+      "src_components_macroconfirmsheet_tsx",
+      "src_components_screen_tsx",
+      "src_components_textfield_tsx",
+      "src_screens_addmealscreen_tsx",
+      "src_screens_barcodescanscreen_tsx",
+      "src_screens_historyscreen_tsx",
+      "src_screens_loginscreen_tsx",
+      "src_screens_manualentryscreen_tsx",
+      "src_screens_photoscanscreen_tsx",
+      "src_screens_profilescreen_tsx",
+      "src_services_openfoodfactsservice_ts",
+      "src_theme_colors_ts",
+      "theme_colors_colors"
+    ],
+    "1": [
+      "codebase_add_meal_barcode",
+      "codebase_add_meal_index",
+      "codebase_add_meal_manual",
+      "codebase_add_meal_photo",
+      "codebase_add_meal_screen",
+      "codebase_app_history",
+      "codebase_app_home",
+      "codebase_app_index",
+      "codebase_app_layout",
+      "codebase_app_login",
+      "codebase_app_native_intent",
+      "codebase_app_onboarding",
+      "codebase_app_profile",
+      "codebase_auth_provider",
+      "codebase_barcode_scan_screen",
+      "codebase_button",
+      "codebase_data_types",
+      "codebase_date_util",
+      "codebase_env_config",
+      "codebase_firebase_service",
+      "codebase_gpt_vision_service_file",
+      "codebase_history_screen",
+      "codebase_home_screen",
+      "codebase_login_screen",
+      "codebase_macro_calculator_file",
+      "codebase_macro_confirm_sheet",
+      "codebase_manual_entry_screen",
+      "codebase_map",
+      "codebase_meal_card",
+      "codebase_meal_repository",
+      "codebase_meals_provider",
+      "codebase_nutrition_bar",
+      "codebase_off_service_file",
+      "codebase_onboarding_screen",
+      "codebase_photo_scan_screen",
+      "codebase_profile_screen",
+      "codebase_screen",
+      "codebase_segmented_control",
+      "codebase_serializers",
+      "codebase_spacing_theme",
+      "codebase_text_field",
+      "codebase_user_profile_provider",
+      "codebase_user_repository",
+      "context_async_storage",
+      "context_calorie_rule",
+      "context_firebase_services",
+      "context_firestore_shape",
+      "context_gpt_vision_service",
+      "context_macro_calculator",
+      "context_openai_vision",
+      "context_providers",
+      "context_ritatu_app",
+      "context_screens",
+      "context_ui_components",
+      "product_principles"
+    ],
+    "2": [
+      "app_home_tsx",
+      "app_onboarding_tsx",
+      "components_mealcard_mealcard",
+      "components_mealcard_sourcelabel",
+      "components_mealcard_styles",
+      "components_nutritionbar_itemprops",
+      "components_nutritionbar_nutritionbar",
+      "components_nutritionbar_nutritionbarprops",
+      "components_nutritionbar_progressitem",
+      "components_nutritionbar_styles",
+      "components_segmentedcontrol_segment",
+      "components_segmentedcontrol_segmentedcontrol",
+      "components_segmentedcontrol_segmentedcontrolprops",
+      "components_segmentedcontrol_styles",
+      "core_date_formatshortdate",
+      "core_date_formattargetdate",
+      "core_macrocalculator_activitymultiplier",
+      "core_macrocalculator_calculatebmr",
+      "core_macrocalculator_calculategoalkcal",
+      "core_macrocalculator_calculatekcal",
+      "core_macrocalculator_calculatemacros",
+      "core_macrocalculator_calculatemealmacros",
+      "core_macrocalculator_calculatetdee",
+      "core_macrocalculator_pacekcal",
+      "core_macrocalculator_round",
+      "core_macrocalculator_validatetargetdate",
+      "data_types_activitylevel",
+      "data_types_confidence",
+      "data_types_datevalidationresult",
+      "data_types_daysummary",
+      "data_types_gender",
+      "data_types_goalpace",
+      "data_types_goaltype",
+      "data_types_macrogoals",
+      "data_types_mealmacros",
+      "data_types_mealsource",
+      "data_types_userprofile",
+      "screens_homescreen_homescreen",
+      "screens_homescreen_styles",
+      "screens_onboardingscreen_num",
+      "screens_onboardingscreen_onboardingscreen",
+      "screens_onboardingscreen_styles",
+      "src_components_mealcard_tsx",
+      "src_components_nutritionbar_tsx",
+      "src_components_segmentedcontrol_tsx",
+      "src_core_macrocalculator_ts",
+      "src_data_types_ts",
+      "src_screens_homescreen_tsx",
+      "src_screens_onboardingscreen_tsx"
+    ],
+    "3": [
+      "app_index_indexroute",
+      "app_index_tsx",
+      "app_layout_rootlayout",
+      "app_layout_tsx",
+      "app_profile_tsx",
+      "config_env_env",
+      "config_env_extra",
+      "config_env_extraconfig",
+      "config_env_isapiconfigured",
+      "config_env_isfirebaseconfigured",
+      "config_env_isgoogleauthconfigured",
+      "data_serializers_profilefromdoc",
+      "data_serializers_profiletodoc",
+      "data_types_visionmealresult",
+      "data_userrepository_createbaseprofile",
+      "data_userrepository_ensuredb",
+      "data_userrepository_getuserprofile",
+      "data_userrepository_upsertuserprofile",
+      "data_userrepository_watchuserprofile",
+      "providers_authprovider_authcontext",
+      "providers_authprovider_authcontextvalue",
+      "providers_authprovider_authprovider",
+      "providers_authprovider_useauth",
+      "providers_mealsprovider_mealsprovider",
+      "providers_userprofileprovider_userprofilecontext",
+      "providers_userprofileprovider_userprofilecontextvalue",
+      "providers_userprofileprovider_userprofileprovider",
+      "providers_userprofileprovider_useuserprofile",
+      "screens_profilescreen_profilescreen",
+      "services_firebase_auth",
+      "services_firebase_db",
+      "services_gptvisionservice_analyzemealphoto",
+      "services_gptvisionservice_analyzemealphotoresponse",
+      "services_gptvisionservice_endpoint",
+      "src_config_env_ts",
+      "src_data_userrepository_ts",
+      "src_providers_authprovider_tsx",
+      "src_providers_userprofileprovider_tsx",
+      "src_services_firebase_ts",
+      "src_services_gptvisionservice_ts"
+    ],
+    "4": [
+      "package_json",
+      "ritatu_package_dependencies",
+      "ritatu_package_dependencies_expo",
+      "ritatu_package_dependencies_expo_auth_session",
+      "ritatu_package_dependencies_expo_camera",
+      "ritatu_package_dependencies_expo_constants",
+      "ritatu_package_dependencies_expo_image_picker",
+      "ritatu_package_dependencies_expo_router",
+      "ritatu_package_dependencies_expo_status_bar",
+      "ritatu_package_dependencies_expo_web_browser",
+      "ritatu_package_dependencies_firebase",
+      "ritatu_package_dependencies_react",
+      "ritatu_package_dependencies_react_dom",
+      "ritatu_package_dependencies_react_native",
+      "ritatu_package_dependencies_react_native_async_storage_async_storage",
+      "ritatu_package_dependencies_react_native_safe_area_context",
+      "ritatu_package_dependencies_react_native_screens",
+      "ritatu_package_dependencies_react_native_web",
+      "ritatu_package_devdependencies",
+      "ritatu_package_devdependencies_types_react",
+      "ritatu_package_devdependencies_typescript",
+      "ritatu_package_main",
+      "ritatu_package_name",
+      "ritatu_package_private",
+      "ritatu_package_scripts",
+      "ritatu_package_scripts_android",
+      "ritatu_package_scripts_ios",
+      "ritatu_package_scripts_start",
+      "ritatu_package_scripts_web",
+      "ritatu_package_version"
+    ],
+    "5": [
+      "core_date_endofday",
+      "core_date_startofday",
+      "core_date_todatekey",
+      "core_macrocalculator_summarizemeals",
+      "data_mealrepository_addmeal",
+      "data_mealrepository_cachekey",
+      "data_mealrepository_cachemealsforday",
+      "data_mealrepository_dayquery",
+      "data_mealrepository_ensuredb",
+      "data_mealrepository_getcachedmealsforday",
+      "data_mealrepository_getmealsforday",
+      "data_mealrepository_parsecachedmeals",
+      "data_mealrepository_watchmealsforday",
+      "data_serializers_mealfromdoc",
+      "data_serializers_mealtodoc",
+      "data_types_mealentry",
+      "data_types_mealentrydocument",
+      "providers_mealsprovider_mealscontext",
+      "providers_mealsprovider_mealscontextvalue",
+      "providers_mealsprovider_today",
+      "src_core_date_ts",
+      "src_data_mealrepository_ts",
+      "src_data_serializers_ts",
+      "src_providers_mealsprovider_tsx"
+    ],
+    "6": [
+      "app_json",
+      "ritatu_app_adaptiveicon_backgroundcolor",
+      "ritatu_app_adaptiveicon_backgroundimage",
+      "ritatu_app_adaptiveicon_foregroundimage",
+      "ritatu_app_adaptiveicon_monochromeimage",
+      "ritatu_app_android_adaptiveicon",
+      "ritatu_app_android_predictivebackgestureenabled",
+      "ritatu_app_expo",
+      "ritatu_app_expo_android",
+      "ritatu_app_expo_icon",
+      "ritatu_app_expo_ios",
+      "ritatu_app_expo_name",
+      "ritatu_app_expo_orientation",
+      "ritatu_app_expo_plugins",
+      "ritatu_app_expo_slug",
+      "ritatu_app_expo_userinterfacestyle",
+      "ritatu_app_expo_version",
+      "ritatu_app_expo_web",
+      "ritatu_app_ios_supportstablet",
+      "ritatu_app_web_favicon"
+    ],
+    "7": [
+      "codebase_colors_theme",
+      "context_impeccable_skill",
+      "context_macro_colors",
+      "context_off_service",
+      "context_open_food_facts",
+      "context_ritatu_project",
+      "context_visual_direction",
+      "design_components",
+      "design_motion_rules",
+      "design_palette",
+      "design_ritatu_design",
+      "product_anti_references",
+      "product_ritatu_product",
+      "product_tone",
+      "product_users"
+    ],
+    "8": [
+      "icon_3dglassmorphism",
+      "icon_appicon",
+      "icon_bluecolor",
+      "icon_brandidentity",
+      "icon_chevronshape",
+      "icon_lightbackground",
+      "icon_mobileapp"
+    ],
+    "9": [
+      "android_icon_background",
+      "concept_android_adaptive_icon",
+      "concept_concentric_circles",
+      "concept_light_blue_background",
+      "concept_safe_zone"
+    ],
+    "10": [
+      "gsd_runtime_write_gate_state_json",
+      "runtime_write_gate_state_activequeuephase",
+      "runtime_write_gate_state_pendinggateid",
+      "runtime_write_gate_state_verifiedapprovalgates",
+      "runtime_write_gate_state_verifieddepthmilestones"
+    ],
+    "11": [
+      "splashicon_appbranding",
+      "splashicon_concentriccircles",
+      "splashicon_gridbackground",
+      "splashicon_minimaldesign",
+      "splashicon_splashscreen"
+    ],
+    "12": [
+      "android_icon_foreground_adaptive",
+      "android_icon_foreground_appicon",
+      "android_icon_foreground_brandcolor",
+      "android_icon_foreground_chevron"
+    ],
+    "13": [
+      "androidiconmonochrome_androidadaptiveicon",
+      "androidiconmonochrome_appicon",
+      "androidiconmonochrome_brandmark",
+      "androidiconmonochrome_chevronshape"
+    ],
+    "14": [
+      "favicon_appicon",
+      "favicon_brandcolor",
+      "favicon_expoapp",
+      "favicon_symbol"
+    ],
+    "15": [
+      "ritatu_tsconfig_compileroptions",
+      "ritatu_tsconfig_compileroptions_strict",
+      "ritatu_tsconfig_extends",
+      "tsconfig_json"
+    ],
+    "16": [
+      "claude_settings_enabledplugins",
+      "claude_settings_enabledplugins_expo_claude_plugins_official",
+      "claude_settings_json"
+    ],
+    "17": [
+      "claude_settings_local_json",
+      "claude_settings_local_permissions",
+      "claude_settings_local_permissions_allow"
+    ],
+    "18": [
+      "app_native_intent_redirectsystempath",
+      "app_native_intent_ts"
+    ],
+    "19": [
+      "c_users_stani_chm_desktop_desktop_ritatu_github_java_upgrade_hooks_scripts_recordtooluse_sh__entry",
+      "github_java_upgrade_hooks_scripts_recordtooluse_sh"
+    ],
+    "20": [
+      "agents_expo_docs",
+      "claude_agents_ref"
+    ],
+    "21": [
+      "app_config_js",
+      "ritatu_app_config_firebaseconfig"
+    ],
+    "22": [
+      "src_theme_spacing_ts",
+      "theme_spacing_spacing"
+    ],
+    "23": [
+      "bg_shell_manifest_json"
+    ],
+    "24": [
+      "github_java_upgrade_hooks_scripts_recordtooluse_ps1"
+    ],
+    "25": [
+      "services_firebase_firebaseapp"
+    ]
+  },
+  "cohesion": {
+    "0": 0.08181818181818182,
+    "1": 0.057912457912457915,
+    "2": 0.07312925170068027,
+    "3": 0.08846153846153847,
+    "4": 0.06666666666666667,
+    "5": 0.16666666666666666,
+    "6": 0.1,
+    "7": 0.13333333333333333,
+    "8": 0.38095238095238093,
+    "9": 0.5,
+    "10": 0.4,
+    "11": 0.5,
+    "12": 0.6666666666666666,
+    "13": 0.6666666666666666,
+    "14": 0.6666666666666666,
+    "15": 0.5,
+    "16": 0.6666666666666666,
+    "17": 0.6666666666666666,
+    "18": 1.0,
+    "19": 1.0,
+    "20": 1.0,
+    "21": 1.0,
+    "22": 1.0,
+    "23": 1.0,
+    "24": 1.0,
+    "25": 1.0
+  },
+  "gods": [
+    {
+      "id": "codebase_map",
+      "label": "Codebase Map",
+      "degree": 43
+    },
+    {
+      "id": "theme_colors_colors",
+      "label": "colors",
+      "degree": 18
+    },
+    {
+      "id": "ritatu_app_expo",
+      "label": "expo",
+      "degree": 11
+    },
+    {
+      "id": "providers_authprovider_useauth",
+      "label": "useAuth()",
+      "degree": 11
+    },
+    {
+      "id": "providers_mealsprovider_usemeals",
+      "label": "useMeals()",
+      "degree": 11
+    },
+    {
+      "id": "context_screens",
+      "label": "Screens Collection",
+      "degree": 10
+    },
+    {
+      "id": "components_button_button",
+      "label": "Button()",
+      "degree": 9
+    },
+    {
+      "id": "components_screen_screen",
+      "label": "Screen()",
+      "degree": 9
+    },
+    {
+      "id": "core_macrocalculator_round",
+      "label": "round()",
+      "degree": 9
+    },
+    {
+      "id": "providers_userprofileprovider_useuserprofile",
+      "label": "useUserProfile()",
+      "degree": 9
+    }
+  ],
+  "surprises": [
+    {
+      "source": "Firebase Services",
+      "target": "src/services/firebase.ts",
+      "source_files": [
+        "CONTEXT.md",
+        ".gsd/CODEBASE.md"
+      ],
+      "confidence": "INFERRED",
+      "relation": "references",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; peripheral node `Firebase Services` unexpectedly reaches hub `src/services/firebase.ts`"
+    },
+    {
+      "source": "Screens Collection",
+      "target": "src/screens/LoginScreen.tsx",
+      "source_files": [
+        "CONTEXT.md",
+        ".gsd/CODEBASE.md"
+      ],
+      "confidence": "INFERRED",
+      "relation": "references",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; peripheral node `src/screens/LoginScreen.tsx` unexpectedly reaches hub `Screens Collection`"
+    },
+    {
+      "source": "Screens Collection",
+      "target": "src/screens/OnboardingScreen.tsx",
+      "source_files": [
+        "CONTEXT.md",
+        ".gsd/CODEBASE.md"
+      ],
+      "confidence": "INFERRED",
+      "relation": "references",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; peripheral node `src/screens/OnboardingScreen.tsx` unexpectedly reaches hub `Screens Collection`"
+    },
+    {
+      "source": "Screens Collection",
+      "target": "src/screens/HomeScreen.tsx",
+      "source_files": [
+        "CONTEXT.md",
+        ".gsd/CODEBASE.md"
+      ],
+      "confidence": "INFERRED",
+      "relation": "references",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; peripheral node `src/screens/HomeScreen.tsx` unexpectedly reaches hub `Screens Collection`"
+    },
+    {
+      "source": "Screens Collection",
+      "target": "src/screens/AddMealScreen.tsx",
+      "source_files": [
+        "CONTEXT.md",
+        ".gsd/CODEBASE.md"
+      ],
+      "confidence": "INFERRED",
+      "relation": "references",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; peripheral node `src/screens/AddMealScreen.tsx` unexpectedly reaches hub `Screens Collection`"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `Codebase Map` connect `Community 1` to `Community 7`?",
+      "why": "High betweenness centrality (0.029) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `colors` connect `Community 0` to `Community 2`, `Community 3`?",
+      "why": "High betweenness centrality (0.015) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `Ritatu App` connect `Community 1` to `Community 7`?",
+      "why": "High betweenness centrality (0.007) - this node is a cross-community bridge."
+    },
+    {
+      "type": "isolated_nodes",
+      "question": "What connects `firebaseConfig`, `name`, `slug` to the rest of the system?",
+      "why": "130 weakly-connected nodes found - possible documentation gaps or missing edges."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 0` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.08181818181818182 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 1` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.057912457912457915 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 2` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.07312925170068027 - nodes in this community are weakly interconnected."
+    }
+  ]
+}

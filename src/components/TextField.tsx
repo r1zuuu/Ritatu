@@ -1,5 +1,6 @@
 import { KeyboardTypeOptions, StyleSheet, Text, TextInput, View } from "react-native";
 import { colors } from "../theme/colors";
+import { typography } from "../theme/typography";
 
 type TextFieldProps = {
   label: string;
@@ -7,6 +8,7 @@ type TextFieldProps = {
   onChangeText: (value: string) => void;
   placeholder?: string;
   keyboardType?: KeyboardTypeOptions;
+  secureTextEntry?: boolean;
   accessibilityLabel?: string;
   accessibilityHint?: string;
 };
@@ -17,6 +19,7 @@ export const TextField = ({
   onChangeText,
   placeholder,
   keyboardType = "default",
+  secureTextEntry = false,
   accessibilityLabel,
   accessibilityHint,
 }: TextFieldProps) => (
@@ -29,6 +32,7 @@ export const TextField = ({
       onChangeText={onChangeText}
       placeholder={placeholder}
       keyboardType={keyboardType}
+      secureTextEntry={secureTextEntry}
       placeholderTextColor={colors.muted}
       style={styles.input}
     />
@@ -41,19 +45,17 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.muted,
-    fontSize: 13,
-    fontWeight: "800",
+    ...typography.label,
     textTransform: "uppercase",
   },
   input: {
     minHeight: 52,
-    borderRadius: 8,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     paddingHorizontal: 14,
     color: colors.text,
-    fontSize: 17,
-    fontWeight: "700",
+    ...typography.body,
   },
 });

@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "../theme/colors";
+import { typography } from "../theme/typography";
 
 export type Segment<T extends string> = {
   label: string;
@@ -44,7 +45,7 @@ const styles = StyleSheet.create({
   },
   item: {
     minHeight: 44,
-    borderRadius: 8,
+    borderRadius: 14,
     paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -58,7 +59,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.text,
-    fontWeight: "800",
+    ...typography.label,
   },
   activeLabel: {
     color: colors.warmBlack,

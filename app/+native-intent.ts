@@ -1,12 +1,4 @@
-export function redirectSystemPath({
-  path,
-  initial,
-}: {
-  path: string;
-  initial: boolean;
-}) {
-  if (path.includes("oauthredirect")) {
-    return "/";
-  }
+export function redirectSystemPath({ path }: { path: string; initial: boolean }) {
+  if (path.includes("oauthredirect")) return "/";
   return path;
 }

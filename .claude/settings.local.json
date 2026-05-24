@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv --version)",
+      "Bash(pipx --version)",
+      "Bash(pip --version)",
+      "Bash(pip install:*)",
+      "Bash(/c/Users/stani.CHM-DESKTOP/AppData/Roaming/Python/Python311/Scripts/graphify.exe install:*)",
+      "Bash(python:*)",
+      "Bash(mkdir -p /c/Users/stani.CHM-DESKTOP/Desktop/Ritatu/graphify-out)",
+      "Bash(read f:*)",
+      "WebFetch(domain:api.anthropic.com)"
+    ]
+  }
+}

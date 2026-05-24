@@ -79,9 +79,12 @@ export const MealsProvider = ({ children }: PropsWithChildren) => {
         fatPer100g: draft.fatPer100g,
         timestamp: new Date(),
         source: draft.source,
+        section: draft.section ?? null,
         barcode: draft.barcode ?? null,
         photoUrl: draft.photoUrl ?? null,
       });
+      const nextMeals = await getCachedMealsForDay(user.uid, today());
+      setMeals(nextMeals);
     },
     [user],
   );

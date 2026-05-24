@@ -12,7 +12,11 @@ export const Screen = ({ children, scroll = false, padded = true }: ScreenProps)
 
   return (
     <SafeAreaView style={styles.safe}>
-      {scroll ? <ScrollView keyboardShouldPersistTaps="handled">{content}</ScrollView> : content}
+      {scroll ? (
+        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {content}
+        </ScrollView>
+      ) : content}
     </SafeAreaView>
   );
 };

@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Button } from "../components/Button";
@@ -13,6 +13,7 @@ const num = (value: string) => Number(value.replace(",", "."));
 
 export const ManualEntryScreen = () => {
   const { addMeal } = useMeals();
+  const params = useLocalSearchParams<{ section?: string; barcode?: string }>();
   const [name, setName] = useState("");
   const [weightG, setWeightG] = useState("100");
   const [protein, setProtein] = useState("");
@@ -51,6 +52,8 @@ export const ManualEntryScreen = () => {
             carbsPer100g: num(carbs),
             fatPer100g: num(fat),
             source: "manual",
+            section: params.section ?? null,
+            barcode: params.barcode ?? null,
           })
         }
       />

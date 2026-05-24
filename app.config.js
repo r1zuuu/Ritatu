@@ -13,8 +13,8 @@ module.exports = {
     orientation: "portrait",
     icon: "./assets/icon.png",
     scheme: ["ritatu", "com.ritatu.app"],
-    userInterfaceStyle: "light",
-    plugins: ["expo-router", "expo-web-browser"],
+    userInterfaceStyle: "dark",
+    plugins: ["expo-router", "expo-web-browser", "expo-font"],
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.ritatu.app",
