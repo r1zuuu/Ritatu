@@ -5,9 +5,9 @@ import type { MealEntry } from "../data/types";
 import { colors } from "../theme/colors";
 
 const sourceLabel: Record<MealEntry["source"], string> = {
-  barcode: "Kod",
-  photo: "Zdjęcie",
-  manual: "Ręcznie",
+  barcode: "Kod kreskowy",
+  photo: "Skan AI",
+  manual: "Wpis ręczny",
 };
 
 export const MealCard = ({ meal }: { meal: MealEntry }) => {
@@ -19,15 +19,24 @@ export const MealCard = ({ meal }: { meal: MealEntry }) => {
         <View style={styles.titleWrap}>
           <Text style={styles.name}>{meal.name}</Text>
           <Text style={styles.meta}>
-            {sourceLabel[meal.source]} · {formatShortDate(meal.timestamp)} · {round(meal.weightG)} g
+            {round(meal.weightG)}g • {sourceLabel[meal.source]} • {formatShortDate(meal.timestamp)}
           </Text>
         </View>
-        <Text style={styles.kcal}>{round(macros.kcal)} kcal</Text>
+        <Text style={styles.kcal}>{round(macros.kcal)} <Text style={styles.unit}>kcal</Text></Text>
       </View>
       <View style={styles.row}>
-        <Text style={styles.macro}>B {round(macros.proteinG)} g</Text>
-        <Text style={styles.macro}>W {round(macros.carbsG)} g</Text>
-        <Text style={styles.macro}>T {round(macros.fatG)} g</Text>
+        <View style={styles.macroPill}>
+          <View style={[styles.dot, { backgroundColor: colors.protein }]} />
+          <Text style={styles.macroText}>{round(macros.proteinG)}g</Text>
+        </View>
+        <View style={styles.macroPill}>
+          <View style={[styles.dot, { backgroundColor: colors.carbs }]} />
+          <Text style={styles.macroText}>{round(macros.carbsG)}g</Text>
+        </View>
+        <View style={styles.macroPill}>
+          <View style={[styles.dot, { backgroundColor: colors.fat }]} />
+          <Text style={styles.macroText}>{round(macros.fatG)}g</Text>
+        </View>
       </View>
     </View>
   );
@@ -36,41 +45,60 @@ export const MealCard = ({ meal }: { meal: MealEntry }) => {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: 14,
-    gap: 12,
+    borderRadius: 16,
+    padding: 16,
+    gap: 16,
   },
   header: {
     flexDirection: "row",
-    gap: 12,
+    gap: 16,
     justifyContent: "space-between",
+    alignItems: "flex-start",
   },
   titleWrap: {
     flex: 1,
   },
   name: {
     color: colors.text,
-    fontSize: 17,
-    fontWeight: "900",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 4,
   },
   meta: {
     color: colors.muted,
     fontSize: 13,
-    marginTop: 4,
+    fontWeight: "500",
   },
   kcal: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "900",
+  },
+  unit: {
+    fontSize: 14,
+    color: colors.muted,
   },
   row: {
     flexDirection: "row",
-    gap: 8,
+    gap: 12,
   },
-  macro: {
-    color: colors.muted,
-    fontWeight: "800",
+  macroPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceAlt,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 6,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  macroText: {
+    color: colors.text,
+    fontWeight: "700",
+    fontSize: 12,
   },
 });

@@ -18,5 +18,5 @@ export default function IndexRoute() {
 
   if (!user) return <Redirect href="/login" />;
   if (!profile?.onboardingDone) return <Redirect href="/onboarding" />;
-  return <Redirect href="/home" />;
+  return <Redirect href="/(tabs)/home" />;
 }

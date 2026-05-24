@@ -30,25 +30,23 @@ export const Button = ({
       pressed && !disabled && styles.pressed,
     ]}
   >
-    <Text style={[styles.label, variant === "danger" && styles.dangerLabel]}>{title}</Text>
+    <Text style={[styles.label, variant === "primary" ? styles.primaryLabel : undefined, variant === "danger" && styles.dangerLabel]}>{title}</Text>
   </Pressable>
 );
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 52,
-    borderRadius: 8,
+    minHeight: 56,
+    borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 18,
+    paddingHorizontal: 24,
   },
   primary: {
     backgroundColor: colors.accent,
   },
   secondary: {
     backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   ghost: {
     backgroundColor: "transparent",
@@ -57,18 +55,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.danger,
   },
   label: {
-    color: colors.warmBlack,
+    color: colors.text,
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "700",
+  },
+  primaryLabel: {
+    color: colors.black,
   },
   dangerLabel: {
-    color: colors.surface,
+    color: colors.black,
   },
   disabled: {
-    opacity: 0.45,
+    opacity: 0.5,
   },
   pressed: {
-    transform: [{ scale: 0.96 }],
-    opacity: 0.86,
+    transform: [{ scale: 0.95 }],
+    opacity: 0.9,
   },
 });

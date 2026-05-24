@@ -7,6 +7,8 @@ type TextFieldProps = {
   onChangeText: (value: string) => void;
   placeholder?: string;
   keyboardType?: KeyboardTypeOptions;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 };
 
 export const TextField = ({
@@ -15,11 +17,14 @@ export const TextField = ({
   onChangeText,
   placeholder,
   keyboardType = "default",
+  accessibilityLabel,
+  accessibilityHint,
 }: TextFieldProps) => (
   <View style={styles.wrap}>
     <Text style={styles.label}>{label}</Text>
     <TextInput
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel || label}
+      accessibilityHint={accessibilityHint}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
@@ -36,19 +41,18 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.muted,
-    fontSize: 13,
-    fontWeight: "800",
+    fontSize: 12,
+    fontWeight: "700",
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   input: {
-    minHeight: 52,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 14,
+    minHeight: 56,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceAlt,
+    paddingHorizontal: 16,
     color: colors.text,
-    fontSize: 17,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

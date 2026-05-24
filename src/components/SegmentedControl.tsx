@@ -43,24 +43,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   item: {
-    minHeight: 44,
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    minHeight: 48,
+    borderRadius: 24,
+    paddingHorizontal: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.surfaceAlt,
   },
   active: {
     backgroundColor: colors.accent,
-    borderColor: colors.accent,
   },
   label: {
-    color: colors.text,
-    fontWeight: "800",
+    color: colors.muted,
+    fontWeight: "700",
   },
   activeLabel: {
-    color: colors.warmBlack,
+    color: colors.black,
   },
 });
