@@ -1,6 +1,6 @@
 import type { MealDraft } from "../data/types";
 
-const OPEN_FOOD_FACTS_BASE_URL = "https://world.openfoodfacts.org";
+const OPEN_FOOD_FACTS_BASE_URL = "https://pl.openfoodfacts.org";
 const PRODUCT_FIELDS = ["code", "product_name", "nutriments", "image_front_url"].join(",");
 const SEARCH_FIELDS = [
   "code",
