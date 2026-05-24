@@ -38,7 +38,7 @@ export const MealsProvider = ({ children }: PropsWithChildren) => {
   const refreshFromCache = useCallback(async () => {
     if (!user) return;
     const cached = await getCachedMealsForDay(user.uid, today());
-    if (cached.length > 0) setMeals(cached);
+    setMeals(cached);
   }, [user]);
 
   useEffect(() => {

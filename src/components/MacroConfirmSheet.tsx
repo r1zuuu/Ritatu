@@ -44,8 +44,9 @@ export const MacroConfirmSheet = ({
     <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View
-        accessibilityRole="summary"
+        accessible
         accessibilityLabel="Potwierdzenie posilku"
+        accessibilityHint="Sprawdz gramature i makro przed zapisaniem"
         style={styles.sheet}
       >
         <Text style={styles.eyebrow}>Potwierdź posiłek</Text>

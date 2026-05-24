@@ -1,431 +1,582 @@
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { calculateBMR, calculateGoalKcal, calculateMacros, calculateTDEE } from "../core/macroCalculator";
-import type { GoalType } from "../data/types";
+import { Icon, type IconName } from "../components/Icon";
+import {
+  calculateBMR,
+  calculateGoalKcal,
+  calculateMacros,
+  calculateTDEE,
+  validateTargetDate,
+} from "../core/macroCalculator";
+import type { ActivityLevel, DateValidationResult, Gender, GoalPace, GoalType } from "../data/types";
 import { useUserProfile } from "../providers/UserProfileProvider";
 import { colors } from "../theme/colors";
-import { Icon, type IconName } from "../components/Icon";
+import { typography } from "../theme/typography";
 
-const STEPS = [
-  { field: "weight", title: "Ile ważysz?", sub: "Podaj swoją aktualną wagę", unit: "kg", min: 30, max: 250, step: 0.5, icon: "weight" },
-  { field: "height", title: "Jaki masz wzrost?", sub: "Potrzebujemy tego do obliczenia Twojego BMI", unit: "cm", min: 130, max: 230, step: 1, icon: "activity" },
-  { field: "age", title: "Ile masz lat?", sub: "Wiek wpływa na Twoje zapotrzebowanie", unit: "lat", min: 10, max: 100, step: 1, icon: "gauge" },
-  { field: "goal", title: "Jaki jest Twój cel?", sub: "Dopasujemy Twój plan na tej podstawie", icon: "sparkles" },
-] as const;
+type StepKey = "gender" | "weight" | "height" | "age" | "goal" | "pace" | "activity" | "target";
+type NumericField = "weight" | "height" | "age" | "targetWeight";
 
-const GOALS = [
-  { id: "lose", label: "Schudnę", sub: "Deficyt kaloryczny", icon: "activity" },
-  { id: "maintain", label: "Utrzymam wagę", sub: "Bilans kaloryczny", icon: "gauge" },
-  { id: "gain", label: "Przytyję", sub: "Nadwyżka kaloryczna", icon: "dumbbell" },
-] as const;
+type OnboardingValues = {
+  gender: Gender;
+  weight: string;
+  height: string;
+  age: string;
+  goal: GoalType;
+  pace: GoalPace;
+  activity: ActivityLevel;
+  targetWeight: string;
+  targetDate: string;
+};
 
-type Vals = { weight: number; height: number; age: number; goal: GoalType };
-type NumericField = "weight" | "height" | "age";
+const BASE_STEPS: StepKey[] = ["gender", "weight", "height", "age", "goal", "pace", "activity", "target"];
+
+const STEP_META: Record<StepKey, { title: string; subtitle: string; icon: IconName }> = {
+  gender: {
+    title: "Dane do wzoru",
+    subtitle: "Płeć zmienia stałą we wzorze Mifflin-St Jeor.",
+    icon: "activity",
+  },
+  weight: {
+    title: "Ile ważysz?",
+    subtitle: "Aktualna waga jest bazą do kalorii i białka.",
+    icon: "weight",
+  },
+  height: {
+    title: "Jaki masz wzrost?",
+    subtitle: "Wzrost wpływa na podstawową przemianę materii.",
+    icon: "bar-chart",
+  },
+  age: {
+    title: "Ile masz lat?",
+    subtitle: "Wiek zmienia dzienne zapotrzebowanie.",
+    icon: "gauge",
+  },
+  goal: {
+    title: "Jaki jest cel?",
+    subtitle: "Na tej podstawie ustawimy bilans kalorii.",
+    icon: "sparkles",
+  },
+  pace: {
+    title: "Jakie tempo?",
+    subtitle: "Bezpieczne tempo daje plan, którego da się trzymać.",
+    icon: "gauge",
+  },
+  activity: {
+    title: "Aktywność",
+    subtitle: "TDEE to BMR pomnożone przez aktywność.",
+    icon: "dumbbell",
+  },
+  target: {
+    title: "Cel wagi",
+    subtitle: "Opcjonalnie dodaj wagę i datę, sprawdzimy realizm planu.",
+    icon: "check",
+  },
+};
+
+const GOALS: Array<{ id: GoalType; label: string; subtitle: string; icon: IconName }> = [
+  { id: "lose", label: "Redukcja", subtitle: "Deficyt kalorii", icon: "activity" },
+  { id: "maintain", label: "Utrzymanie", subtitle: "Bilans kalorii", icon: "gauge" },
+  { id: "gain", label: "Masa", subtitle: "Nadwyżka kalorii", icon: "dumbbell" },
+];
+
+const PACES: Array<{ id: GoalPace; label: string; subtitle: string; kcal: number }> = [
+  { id: "slow", label: "Wolne", subtitle: "około 0.25 kg / tydz.", kcal: 275 },
+  { id: "moderate", label: "Umiarkowane", subtitle: "około 0.5 kg / tydz.", kcal: 550 },
+  { id: "fast", label: "Szybkie", subtitle: "około 0.75 kg / tydz.", kcal: 825 },
+];
+
+const ACTIVITIES: Array<{ id: ActivityLevel; label: string; subtitle: string }> = [
+  { id: "sedentary", label: "Siedzący", subtitle: "Biuro, mało ruchu" },
+  { id: "light", label: "Lekki", subtitle: "Spacery, 1-2 treningi" },
+  { id: "moderate", label: "Umiarkowany", subtitle: "3-4 treningi tygodniowo" },
+  { id: "active", label: "Bardzo aktywny", subtitle: "5+ treningów lub praca fizyczna" },
+];
 
 const parseDecimal = (value: string) => Number(value.replace(",", "."));
-const formatNumeric = (value: number, decimals = 1) => {
+const formatNumber = (value: number, decimals = 1) => {
   const rounded = Number(value.toFixed(decimals));
   return Number.isInteger(rounded) ? String(rounded) : String(rounded);
 };
 
+const parseDateInput = (value: string): Date | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (
+    date.getFullYear() !== Number(match[1]) ||
+    date.getMonth() !== Number(match[2]) - 1 ||
+    date.getDate() !== Number(match[3])
+  ) {
+    return null;
+  }
+  return date;
+};
+
+const formatDate = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
 export const OnboardingScreen = () => {
-  const { profile, saveProfile } = useUserProfile();
   const insets = useSafeAreaInsets();
-  const [step, setStep] = useState(0);
-  const [vals, setVals] = useState<Vals>({ weight: 83.0, height: 178, age: 25, goal: "maintain" });
-  const [numberInputs, setNumberInputs] = useState<Record<NumericField, string>>({
+  const { profile, saveProfile } = useUserProfile();
+  const [stepIndex, setStepIndex] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [values, setValues] = useState<OnboardingValues>({
+    gender: "male",
     weight: "83",
     height: "178",
     age: "25",
+    goal: "lose",
+    pace: "moderate",
+    activity: "moderate",
+    targetWeight: "78",
+    targetDate: "",
   });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const cur = STEPS[step];
-  const isLast = step === STEPS.length - 1;
-  const isGoal = cur.field === "goal";
+  const steps = useMemo(
+    () => BASE_STEPS.filter((step) => values.goal !== "maintain" || (step !== "pace" && step !== "target")),
+    [values.goal],
+  );
+  const step = steps[Math.min(stepIndex, steps.length - 1)];
+  const meta = STEP_META[step];
+  const isLast = stepIndex === steps.length - 1;
 
-  const adj = (delta: number) => {
-    if (isGoal) return;
-    const s = cur as typeof STEPS[0];
-    const field = s.field as NumericField;
-    const current = parseDecimal(numberInputs[field]);
-    const base = Number.isFinite(current) ? current : vals[field];
-    const next = Math.min(s.max, Math.max(s.min, base + delta));
-    const normalized = formatNumeric(next, s.step < 1 ? 1 : 0);
-    setVals(v => ({ ...v, [field]: Number(normalized) }));
-    setNumberInputs(v => ({ ...v, [field]: normalized }));
+  const weight = parseDecimal(values.weight);
+  const height = parseDecimal(values.height);
+  const age = parseDecimal(values.age);
+  const targetWeight = parseDecimal(values.targetWeight);
+  const targetDate = parseDateInput(values.targetDate);
+
+  const preview = useMemo(() => {
+    if (![weight, height, age].every(Number.isFinite)) return null;
+    const bmr = calculateBMR(weight, height, age, values.gender);
+    const tdee = calculateTDEE(bmr, values.activity);
+    const goalKcal = calculateGoalKcal(tdee, values.goal, values.pace);
+    const macros = calculateMacros(goalKcal, weight, values.goal);
+    return { bmr, tdee, macros };
+  }, [age, height, values.activity, values.gender, values.goal, values.pace, weight]);
+
+  const dateValidation = useMemo<DateValidationResult | null>(() => {
+    if (values.goal === "maintain") return null;
+    if (!Number.isFinite(weight) || !Number.isFinite(targetWeight) || targetWeight <= 0) return null;
+    const change = Math.abs(targetWeight - weight);
+    if (change === 0) return null;
+    return validateTargetDate(targetDate, change, values.pace);
+  }, [targetDate, targetWeight, values.goal, values.pace, weight]);
+
+  const setValue = <K extends keyof OnboardingValues>(key: K, value: OnboardingValues[K]) => {
+    setError(null);
+    setValues((current) => ({ ...current, [key]: value }));
   };
 
-  const displayVal = isGoal ? null : (vals[cur.field as keyof Vals] as number);
-  const currentNumericStep = isGoal ? null : (cur as typeof STEPS[0]);
-  const currentField = currentNumericStep?.field as NumericField | undefined;
-
-  const updateNumberInput = (text: string) => {
-    if (!currentNumericStep || !currentField) return;
-    setNumberInputs(v => ({ ...v, [currentField]: text }));
-    const parsed = parseDecimal(text);
-    if (!Number.isFinite(parsed)) return;
-    const bounded = Math.min(currentNumericStep.max, Math.max(currentNumericStep.min, parsed));
-    setVals(v => ({ ...v, [currentField]: bounded }));
+  const changeNumeric = (field: NumericField, delta: number, min: number, max: number, decimals = 1) => {
+    const current = parseDecimal(values[field]);
+    const base = Number.isFinite(current) ? current : min;
+    setValue(field, formatNumber(Math.max(min, Math.min(max, base + delta)), decimals));
   };
 
-  const normalizeNumberInput = () => {
-    if (!currentNumericStep || !currentField) return;
-    const parsed = parseDecimal(numberInputs[currentField]);
-    const base = Number.isFinite(parsed) ? parsed : vals[currentField];
-    const bounded = Math.min(currentNumericStep.max, Math.max(currentNumericStep.min, base));
-    const normalized = formatNumeric(bounded, currentNumericStep.step < 1 ? 1 : 0);
-    setVals(v => ({ ...v, [currentField]: Number(normalized) }));
-    setNumberInputs(v => ({ ...v, [currentField]: normalized }));
+  const validateCurrentStep = () => {
+    if (step === "weight" && (!Number.isFinite(weight) || weight < 30 || weight > 250)) return "Podaj wagę 30-250 kg.";
+    if (step === "height" && (!Number.isFinite(height) || height < 130 || height > 230)) return "Podaj wzrost 130-230 cm.";
+    if (step === "age" && (!Number.isFinite(age) || age < 10 || age > 100)) return "Podaj wiek 10-100 lat.";
+    if (step === "target" && values.targetDate.trim() && !targetDate) return "Data musi mieć format RRRR-MM-DD.";
+    if (step === "target" && values.targetWeight.trim() && (!Number.isFinite(targetWeight) || targetWeight < 30 || targetWeight > 250)) {
+      return "Cel wagi musi być w zakresie 30-250 kg.";
+    }
+    return null;
+  };
+
+  const goNext = () => {
+    const validation = validateCurrentStep();
+    if (validation) {
+      setError(validation);
+      return;
+    }
+
+    if (isLast) {
+      void finish();
+      return;
+    }
+
+    setStepIndex((current) => Math.min(current + 1, steps.length - 1));
   };
 
   const finish = async () => {
-    if (!profile) return;
+    if (!profile || !preview) return;
+    const validation = validateCurrentStep();
+    if (validation) {
+      setError(validation);
+      return;
+    }
+
+    const savedTargetDate =
+      dateValidation && targetDate
+        ? dateValidation.isRealistic
+          ? targetDate
+          : dateValidation.realisticDate
+        : targetDate;
+
     setSaving(true);
     setError(null);
     try {
-      const bmr = calculateBMR(vals.weight, vals.height, vals.age, "male");
-      const tdee = calculateTDEE(bmr, "moderate");
-      const goalKcal = calculateGoalKcal(tdee, vals.goal, "moderate");
-      const macros = calculateMacros(goalKcal, vals.weight, vals.goal);
       await saveProfile({
         ...profile,
-        weightKg: vals.weight,
-        heightCm: vals.height,
-        age: Math.round(vals.age),
-        gender: "male",
-        goalType: vals.goal,
-        goalPace: "moderate",
-        activityLevel: "moderate",
-        targetWeightKg: null,
-        targetDate: null,
-        goalKcal: macros.kcal,
-        goalProteinG: macros.proteinG,
-        goalCarbsG: macros.carbsG,
-        goalFatG: macros.fatG,
+        weightKg: weight,
+        heightCm: height,
+        age: Math.round(age),
+        gender: values.gender,
+        goalType: values.goal,
+        goalPace: values.goal === "maintain" ? null : values.pace,
+        activityLevel: values.activity,
+        targetWeightKg: values.goal === "maintain" || !Number.isFinite(targetWeight) ? null : targetWeight,
+        targetDate: values.goal === "maintain" ? null : savedTargetDate,
+        goalKcal: preview.macros.kcal,
+        goalProteinG: preview.macros.proteinG,
+        goalCarbsG: preview.macros.carbsG,
+        goalFatG: preview.macros.fatG,
         onboardingDone: true,
       });
       router.replace("/home");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Nie udało się zapisać.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Nie udało się zapisać profilu.");
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top }]}>
-      {/* Progress header */}
+    <View style={[styles.wrap, { paddingTop: insets.top + 10 }]}>
       <View style={styles.header}>
-        {step > 0 ? (
-          <TouchableOpacity onPress={() => setStep(s => s - 1)} style={styles.back}>
-            <Text style={styles.backArrow}>‹</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 30 }} />
-        )}
-        <View style={styles.dots}>
-          {STEPS.map((_, i) => (
-            <View key={i} style={[styles.dot, i <= step && styles.dotActive, i === step && styles.dotCurrent]} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Wstecz"
+          disabled={stepIndex === 0}
+          onPress={() => setStepIndex((current) => Math.max(0, current - 1))}
+          style={({ pressed }) => [styles.back, stepIndex === 0 && styles.hidden, pressed && styles.pressed]}
+        >
+          <Icon name="chevron-left" size={22} color={colors.text} />
+        </Pressable>
+        <View style={styles.progress}>
+          {steps.map((item, index) => (
+            <View key={item} style={[styles.dot, index <= stepIndex && styles.dotActive, index === stepIndex && styles.dotCurrent]} />
           ))}
         </View>
-        <Text style={styles.stepLabel}>{step + 1}/{STEPS.length}</Text>
+        <Text style={styles.stepCount}>{stepIndex + 1}/{steps.length}</Text>
       </View>
 
-      {/* Content */}
-      <View style={styles.content}>
-        <View style={styles.icon}>
-          <Icon name={cur.icon as IconName} size={34} color={colors.accent} />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <View style={styles.iconBox}>
+          <Icon name={meta.icon} size={32} color={colors.accent} />
         </View>
-        <Text style={styles.title}>{cur.title}</Text>
-        <Text style={styles.sub}>{cur.sub}</Text>
+        <Text style={styles.title}>{meta.title}</Text>
+        <Text style={styles.subtitle}>{meta.subtitle}</Text>
 
-        {!isGoal ? (
-          <View style={styles.stepper}>
-            <View style={styles.valuRow}>
-              <TextInput
-                style={styles.bigInput}
-                value={currentField ? numberInputs[currentField] : String(displayVal ?? "")}
-                onChangeText={updateNumberInput}
-                onBlur={normalizeNumberInput}
-                keyboardType="decimal-pad"
-                selectTextOnFocus
-                accessibilityLabel={`${(cur as typeof STEPS[0]).title}, wpisz liczbe`}
-              />
-              <Text style={styles.unit}>{(cur as typeof STEPS[0]).unit}</Text>
-            </View>
-            <View style={styles.btnsRow}>
-              <TouchableOpacity style={styles.btnMinus} onPress={() => adj(-(cur as typeof STEPS[0]).step)} activeOpacity={0.7}>
-                <Text style={styles.btnMinusText}>−</Text>
-              </TouchableOpacity>
-              <View style={styles.divider} />
-              <TouchableOpacity style={styles.btnPlus} onPress={() => adj((cur as typeof STEPS[0]).step)} activeOpacity={0.7}>
-                <Text style={styles.btnPlusText}>+</Text>
-              </TouchableOpacity>
-            </View>
+        {step === "gender" ? (
+          <View style={styles.cards}>
+            <ChoiceCard label="Mężczyzna" subtitle="+5 kcal we wzorze BMR" active={values.gender === "male"} onPress={() => setValue("gender", "male")} />
+            <ChoiceCard label="Kobieta" subtitle="-161 kcal we wzorze BMR" active={values.gender === "female"} onPress={() => setValue("gender", "female")} />
           </View>
-        ) : (
-          <View style={styles.goalList}>
-            {GOALS.map(g => (
-              <TouchableOpacity
-                key={g.id}
-                style={[styles.goalCard, vals.goal === g.id && styles.goalCardActive]}
-                onPress={() => setVals(v => ({ ...v, goal: g.id }))}
-                activeOpacity={0.8}
-              >
-                <View style={styles.goalIcon}>
-                  <Icon name={g.icon as IconName} size={24} color={vals.goal === g.id ? colors.accent : colors.mutedMid} />
-                </View>
-                <View style={styles.goalText}>
-                  <Text style={styles.goalLabel}>{g.label}</Text>
-                  <Text style={styles.goalSub}>{g.sub}</Text>
-                </View>
-                <View style={[styles.radio, vals.goal === g.id && styles.radioActive]}>
-                  {vals.goal === g.id && <View style={styles.radioDot} />}
-                </View>
-              </TouchableOpacity>
+        ) : null}
+
+        {step === "weight" ? (
+          <NumberStep
+            value={values.weight}
+            unit="kg"
+            min={30}
+            max={250}
+            step={0.5}
+            decimals={1}
+            onChange={(value) => setValue("weight", value)}
+            onAdjust={(delta) => changeNumeric("weight", delta, 30, 250, 1)}
+          />
+        ) : null}
+
+        {step === "height" ? (
+          <NumberStep
+            value={values.height}
+            unit="cm"
+            min={130}
+            max={230}
+            step={1}
+            decimals={0}
+            onChange={(value) => setValue("height", value)}
+            onAdjust={(delta) => changeNumeric("height", delta, 130, 230, 0)}
+          />
+        ) : null}
+
+        {step === "age" ? (
+          <NumberStep
+            value={values.age}
+            unit="lat"
+            min={10}
+            max={100}
+            step={1}
+            decimals={0}
+            onChange={(value) => setValue("age", value)}
+            onAdjust={(delta) => changeNumeric("age", delta, 10, 100, 0)}
+          />
+        ) : null}
+
+        {step === "goal" ? (
+          <View style={styles.cards}>
+            {GOALS.map((goal) => (
+              <ChoiceCard
+                key={goal.id}
+                icon={goal.icon}
+                label={goal.label}
+                subtitle={goal.subtitle}
+                active={values.goal === goal.id}
+                onPress={() => {
+                  setValue("goal", goal.id);
+                  if (goal.id === "lose" && Number.isFinite(weight)) setValue("targetWeight", formatNumber(Math.max(30, weight - 5), 1));
+                  if (goal.id === "gain" && Number.isFinite(weight)) setValue("targetWeight", formatNumber(Math.min(250, weight + 5), 1));
+                }}
+              />
             ))}
           </View>
-        )}
-      </View>
+        ) : null}
 
-      {/* Bottom */}
-      <View style={[styles.bottom, { paddingBottom: insets.bottom + 16 }]}>
+        {step === "pace" ? (
+          <View style={styles.cards}>
+            {PACES.map((pace) => (
+              <ChoiceCard
+                key={pace.id}
+                label={pace.label}
+                subtitle={`${pace.subtitle} (${values.goal === "lose" ? "-" : "+"}${pace.kcal} kcal/dzień)`}
+                active={values.pace === pace.id}
+                onPress={() => setValue("pace", pace.id)}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {step === "activity" ? (
+          <View style={styles.cards}>
+            {ACTIVITIES.map((activity) => (
+              <ChoiceCard
+                key={activity.id}
+                label={activity.label}
+                subtitle={activity.subtitle}
+                active={values.activity === activity.id}
+                onPress={() => setValue("activity", activity.id)}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {step === "target" ? (
+          <View style={styles.targetBox}>
+            <Field label="Docelowa waga" value={values.targetWeight} unit="kg" onChangeText={(value) => setValue("targetWeight", value)} />
+            <Field label="Data celu" value={values.targetDate} placeholder="RRRR-MM-DD" onChangeText={(value) => setValue("targetDate", value)} />
+            {dateValidation ? (
+              <View style={[styles.notice, !dateValidation.isRealistic && styles.noticeWarn]}>
+                <Icon name={dateValidation.isRealistic ? "check" : "alert"} size={18} color={dateValidation.isRealistic ? colors.green : colors.danger} />
+                <Text style={styles.noticeText}>
+                  {dateValidation.isRealistic
+                    ? `Realistyczne. Zmiana około ${dateValidation.estimatedChangeKg} kg do tej daty.`
+                    : `Za ambitne. Sugerowana data: ${formatDate(dateValidation.realisticDate)}.`}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.helper}>Możesz zostawić te pola puste. Cele dzienne i tak zostaną policzone.</Text>
+            )}
+          </View>
+        ) : null}
+
+        {preview ? (
+          <View style={styles.preview}>
+            <PreviewItem label="Kalorie" value={`${preview.macros.kcal} kcal`} />
+            <PreviewItem label="Białko" value={`${preview.macros.proteinG} g`} />
+            <PreviewItem label="Węgle" value={`${preview.macros.carbsG} g`} />
+            <PreviewItem label="Tłuszcze" value={`${preview.macros.fatG} g`} />
+          </View>
+        ) : null}
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <TouchableOpacity
-          style={styles.cta}
-          onPress={() => isLast ? void finish() : setStep(s => s + 1)}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={isLast ? "Zapisz cele" : "Dalej"}
           disabled={saving}
-          activeOpacity={0.85}
+          style={({ pressed }) => [styles.cta, saving && styles.disabled, pressed && !saving && styles.pressed]}
+          onPress={goNext}
         >
-          <Text style={styles.ctaText}>{isLast ? (saving ? "Zapisuję..." : "Zaczynamy") : "Dalej"}</Text>
-        </TouchableOpacity>
+          <Text style={styles.ctaText}>{isLast ? (saving ? "Zapisuję..." : "Zapisz cele") : "Dalej"}</Text>
+        </Pressable>
       </View>
     </View>
   );
 };
 
+function NumberStep({
+  value,
+  unit,
+  step,
+  onChange,
+  onAdjust,
+}: {
+  value: string;
+  unit: string;
+  min: number;
+  max: number;
+  step: number;
+  decimals: number;
+  onChange: (value: string) => void;
+  onAdjust: (delta: number) => void;
+}) {
+  return (
+    <View style={styles.numberWrap}>
+      <View style={styles.numberRow}>
+        <TextInput
+          accessibilityLabel={`Wpisz wartość w ${unit}`}
+          value={value}
+          onChangeText={onChange}
+          keyboardType="decimal-pad"
+          selectTextOnFocus
+          style={styles.numberInput}
+        />
+        <Text style={styles.unit}>{unit}</Text>
+      </View>
+      <View style={styles.adjustRow}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Zmniejsz" style={({ pressed }) => [styles.adjust, pressed && styles.pressed]} onPress={() => onAdjust(-step)}>
+          <Icon name="minus" size={24} color={colors.text} />
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Zwiększ" style={({ pressed }) => [styles.adjust, styles.adjustActive, pressed && styles.pressed]} onPress={() => onAdjust(step)}>
+          <Icon name="plus" size={24} color={colors.warmBlack} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function ChoiceCard({
+  label,
+  subtitle,
+  active,
+  icon,
+  onPress,
+}: {
+  label: string;
+  subtitle: string;
+  active: boolean;
+  icon?: IconName;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      style={({ pressed }) => [styles.choice, active && styles.choiceActive, pressed && styles.pressed]}
+      onPress={onPress}
+    >
+      {icon ? (
+        <View style={styles.choiceIcon}>
+          <Icon name={icon} size={22} color={active ? colors.accent : colors.mutedMid} />
+        </View>
+      ) : null}
+      <View style={styles.choiceText}>
+        <Text style={styles.choiceLabel}>{label}</Text>
+        <Text style={styles.choiceSubtitle}>{subtitle}</Text>
+      </View>
+      <View style={[styles.radio, active && styles.radioActive]}>{active ? <View style={styles.radioDot} /> : null}</View>
+    </Pressable>
+  );
+}
+
+function Field({
+  label,
+  value,
+  unit,
+  placeholder,
+  onChangeText,
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  placeholder?: string;
+  onChangeText: (value: string) => void;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.fieldInputWrap}>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder ?? "0"}
+          placeholderTextColor={colors.muted}
+          keyboardType={unit ? "decimal-pad" : "numbers-and-punctuation"}
+          style={styles.fieldInput}
+        />
+        {unit ? <Text style={styles.fieldUnit}>{unit}</Text> : null}
+      </View>
+    </View>
+  );
+}
+
+function PreviewItem({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.previewItem}>
+      <Text style={styles.previewLabel}>{label}</Text>
+      <Text style={styles.previewValue}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  wrap: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    gap: 10,
-  },
-  back: {
-    width: 30,
-    alignItems: "flex-start",
-  },
-  backArrow: {
-    color: colors.mutedMid,
-    fontSize: 28,
-    lineHeight: 30,
-  },
-  dots: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-  },
-  dot: {
-    height: 5,
-    width: 6,
-    borderRadius: 3,
-    backgroundColor: colors.border,
-  },
-  dotActive: {
-    backgroundColor: colors.accent,
-  },
-  dotCurrent: {
-    width: 22,
-  },
-  stepLabel: {
-    color: colors.muted,
-    fontSize: 11,
-    width: 30,
-    textAlign: "right",
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 28,
-  },
-  icon: {
-    alignItems: "center",
-    backgroundColor: colors.accentA,
-    borderColor: colors.accentB,
-    borderRadius: 18,
-    borderWidth: 1,
-    height: 56,
-    justifyContent: "center",
-    marginBottom: 14,
-    width: 56,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 26,
-    fontWeight: "800",
-    marginBottom: 6,
-    lineHeight: 32,
-  },
-  sub: {
-    color: colors.muted,
-    fontSize: 14,
-    marginBottom: 36,
-  },
-  stepper: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 32,
-  },
-  valuRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 8,
-  },
-  bigInput: {
-    color: colors.text,
-    fontSize: 72,
-    fontWeight: "800",
-    letterSpacing: -2,
-    lineHeight: 76,
-    minWidth: 140,
-    maxWidth: 240,
-    textAlign: "center",
-    paddingVertical: 0,
-  },
-  unit: {
-    color: colors.muted,
-    fontSize: 22,
-    fontWeight: "500",
-    paddingBottom: 8,
-  },
-  btnsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 20,
-  },
-  btnMinus: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnMinusText: {
-    color: colors.text,
-    fontSize: 28,
-    fontWeight: "300",
-  },
-  divider: {
-    width: 1,
-    height: 60,
-    backgroundColor: colors.border,
-  },
-  btnPlus: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnPlusText: {
-    color: "#fff",
-    fontSize: 28,
-    fontWeight: "400",
-  },
-  goalList: {
-    flex: 1,
-    gap: 10,
-    justifyContent: "center",
-  },
-  goalCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    padding: 16,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-  },
-  goalCardActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentA,
-  },
-  goalIcon: {
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    height: 42,
-    justifyContent: "center",
-    width: 42,
-  },
-  goalText: {
-    flex: 1,
-  },
-  goalLabel: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  goalSub: {
-    color: colors.muted,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  radioActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accent,
-  },
-  radioDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: "#fff",
-  },
-  bottom: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    gap: 8,
-  },
-  cta: {
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ctaText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  error: {
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: "700",
-  },
+  wrap: { backgroundColor: colors.background, flex: 1 },
+  header: { alignItems: "center", flexDirection: "row", gap: 12, paddingHorizontal: 18, paddingVertical: 10 },
+  back: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: 40, justifyContent: "center", width: 40 },
+  hidden: { opacity: 0 },
+  progress: { flex: 1, flexDirection: "row", gap: 5, justifyContent: "center" },
+  dot: { backgroundColor: colors.borderMid, borderRadius: 3, height: 5, width: 8 },
+  dotActive: { backgroundColor: colors.accent },
+  dotCurrent: { width: 24 },
+  stepCount: { ...typography.label, color: colors.muted, textAlign: "right", width: 42 },
+  content: { paddingBottom: 26, paddingHorizontal: 22, paddingTop: 18 },
+  iconBox: { alignItems: "center", backgroundColor: colors.accentA, borderColor: colors.accentB, borderRadius: 18, borderWidth: 1, height: 58, justifyContent: "center", marginBottom: 14, width: 58 },
+  title: { ...typography.title, color: colors.text },
+  subtitle: { ...typography.body, color: colors.mutedMid, marginTop: 7 },
+  cards: { gap: 10, marginTop: 28 },
+  choice: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.border, borderRadius: 18, borderWidth: 1.5, flexDirection: "row", gap: 13, minHeight: 72, padding: 14 },
+  choiceActive: { backgroundColor: colors.accentA, borderColor: colors.accent },
+  choiceIcon: { alignItems: "center", backgroundColor: colors.surface, borderRadius: 13, height: 42, justifyContent: "center", width: 42 },
+  choiceText: { flex: 1 },
+  choiceLabel: { ...typography.section, color: colors.text },
+  choiceSubtitle: { ...typography.label, color: colors.mutedMid, marginTop: 2 },
+  radio: { alignItems: "center", borderColor: colors.borderMid, borderRadius: 11, borderWidth: 2, height: 22, justifyContent: "center", width: 22 },
+  radioActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  radioDot: { backgroundColor: colors.warmBlack, borderRadius: 4, height: 8, width: 8 },
+  numberWrap: { alignItems: "center", gap: 30, marginTop: 54 },
+  numberRow: { alignItems: "flex-end", flexDirection: "row", gap: 8 },
+  numberInput: { ...typography.display, color: colors.text, fontSize: 72, lineHeight: 76, minWidth: 160, paddingVertical: 0, textAlign: "center" },
+  unit: { ...typography.section, color: colors.mutedMid, paddingBottom: 10 },
+  adjustRow: { flexDirection: "row", gap: 16 },
+  adjust: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.border, borderRadius: 18, borderWidth: 1, height: 58, justifyContent: "center", width: 78 },
+  adjustActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  targetBox: { gap: 14, marginTop: 28 },
+  field: { gap: 8 },
+  fieldLabel: { ...typography.label, color: colors.mutedMid, textTransform: "uppercase" },
+  fieldInputWrap: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.border, borderRadius: 15, borderWidth: 1, flexDirection: "row", minHeight: 52, paddingHorizontal: 14 },
+  fieldInput: { ...typography.body, color: colors.text, flex: 1, paddingVertical: 0 },
+  fieldUnit: { ...typography.label, color: colors.mutedMid },
+  helper: { ...typography.body, color: colors.muted },
+  notice: { alignItems: "flex-start", backgroundColor: "rgba(56,201,124,0.12)", borderColor: "rgba(56,201,124,0.28)", borderRadius: 15, borderWidth: 1, flexDirection: "row", gap: 10, padding: 12 },
+  noticeWarn: { backgroundColor: "rgba(255,79,107,0.12)", borderColor: "rgba(255,79,107,0.28)" },
+  noticeText: { ...typography.label, color: colors.text, flex: 1 },
+  preview: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 26, padding: 12 },
+  previewItem: { backgroundColor: colors.card, borderRadius: 13, flexBasis: "48%", flexGrow: 1, padding: 12 },
+  previewLabel: { ...typography.label, color: colors.muted },
+  previewValue: { ...typography.section, color: colors.text, marginTop: 2 },
+  footer: { gap: 10, paddingHorizontal: 22, paddingTop: 12 },
+  cta: { alignItems: "center", backgroundColor: colors.accent, borderRadius: 15, height: 54, justifyContent: "center" },
+  ctaText: { ...typography.button, color: colors.warmBlack },
+  error: { ...typography.label, color: colors.danger },
+  disabled: { opacity: 0.45 },
+  pressed: { opacity: 0.86, transform: [{ scale: 0.96 }] },
 });

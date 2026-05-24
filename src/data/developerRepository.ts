@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { toDateKey } from "../core/date";
 import type { DeveloperSettings, MealEntry, ProgressPhoto, UserProfile, WeightEntry } from "./types";
 
 export const DEV_SETTINGS_KEY = "ritatu:dev-settings";
@@ -47,7 +48,7 @@ export const clearLocalAppData = async (): Promise<void> => {
 
 export const seedDemoData = async (uid: string, profile: UserProfile | null): Promise<void> => {
   const now = new Date();
-  const dateKey = now.toISOString().slice(0, 10);
+  const dateKey = toDateKey(now);
   const mealKey = `ritatu:meals:${uid}:${dateKey}`;
   const demoMeals: MealEntry[] = [
     {
