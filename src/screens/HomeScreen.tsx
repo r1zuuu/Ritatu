@@ -19,8 +19,8 @@ export const HomeScreen = () => {
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Dodaj posilek"
-          accessibilityHint="Otwiera wybor sposobu dodania posilku"
+          accessibilityLabel="Dodaj posiłek"
+          accessibilityHint="Otwiera wybór sposobu dodania posiłku"
           style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
           onPress={() => router.push("/add-meal")}
         >
