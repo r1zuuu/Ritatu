@@ -48,6 +48,7 @@ export type UserProfile = {
   email: string;
   displayName?: string | null;
   weightKg?: number | null;
+  targetWeightKg?: number | null;
   heightCm?: number | null;
   age?: number | null;
   gender?: Gender | null;
