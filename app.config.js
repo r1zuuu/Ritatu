@@ -7,7 +7,15 @@ module.exports = {
     icon: "./assets/icon.png",
     scheme: ["ritatu", "com.ritatu.app"],
     userInterfaceStyle: "dark",
-    plugins: ["expo-router", "expo-font"],
+    plugins: ["expo-router", "expo-font", "expo-updates"],
+    updates: {
+      url: "https://u.expo.dev/ritatu",
+      checkAutomatically: "ON_LOAD",
+      fallbackToCacheTimeout: 0,
+    },
+    runtimeVersion: {
+      policy: "appVersion",
+    },
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.ritatu.app",

@@ -119,23 +119,40 @@ const parseDateInput = (value: string): Date | null => {
 const formatDate = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
+function profileToValues(profile: import("../data/types").UserProfile | null): OnboardingValues {
+  if (!profile) {
+    return {
+      gender: "male",
+      weight: "",
+      height: "",
+      age: "",
+      goal: "lose",
+      pace: "moderate",
+      activity: "moderate",
+      targetWeight: "",
+      targetDate: "",
+    };
+  }
+  return {
+    gender: profile.gender ?? "male",
+    weight: profile.weightKg != null ? String(profile.weightKg) : "",
+    height: profile.heightCm != null ? String(profile.heightCm) : "",
+    age: profile.age != null ? String(profile.age) : "",
+    goal: profile.goalType ?? "lose",
+    pace: profile.goalPace ?? "moderate",
+    activity: profile.activityLevel ?? "moderate",
+    targetWeight: profile.targetWeightKg != null ? String(profile.targetWeightKg) : "",
+    targetDate: profile.targetDate ? formatDate(profile.targetDate) : "",
+  };
+}
+
 export const OnboardingScreen = () => {
   const insets = useSafeAreaInsets();
   const { profile, saveProfile } = useUserProfile();
   const [stepIndex, setStepIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [values, setValues] = useState<OnboardingValues>({
-    gender: "male",
-    weight: "83",
-    height: "178",
-    age: "25",
-    goal: "lose",
-    pace: "moderate",
-    activity: "moderate",
-    targetWeight: "78",
-    targetDate: "",
-  });
+  const [values, setValues] = useState<OnboardingValues>(() => profileToValues(profile));
 
   const steps = useMemo(
     () => BASE_STEPS.filter((step) => values.goal !== "maintain" || (step !== "pace" && step !== "target")),

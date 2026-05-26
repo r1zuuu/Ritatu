@@ -22,6 +22,13 @@ export const saveProgressPhotos = async (photos: ProgressPhoto[]): Promise<void>
 
 export const persistProgressPhotoFile = async (sourceUri: string): Promise<string> => sourceUri;
 
+export const deleteProgressPhoto = async (id: string): Promise<ProgressPhoto[]> => {
+  const all = await getProgressPhotos();
+  const next = all.filter((p) => p.id !== id);
+  await saveProgressPhotos(next);
+  return next;
+};
+
 export const clearProgressPhotos = async (): Promise<void> => {
   await AsyncStorage.removeItem(PROGRESS_PHOTOS_KEY);
 };

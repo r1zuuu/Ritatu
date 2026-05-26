@@ -76,38 +76,53 @@ export const BarcodeScanScreen = () => {
   };
 
   const handleScan = async ({ data }: BarcodeScanningResult) => {
-    if (scanLockedRef.current || loading || draft) return;
-
+    if (scanLockedRef.current) return;
     scanLockedRef.current = true;
+
     setLookupError(null);
     setLoading(true);
 
-    const settings = await getDeveloperSettings();
-    if (settings.mockBarcodeEnabled) {
-      setDraft({
-        name: "Produkt testowy",
-        weightG: 100,
-        proteinPer100g: 12,
-        carbsPer100g: 18,
-        fatPer100g: 4,
-        source: "barcode",
+    try {
+      const settings = await getDeveloperSettings();
+      if (settings.mockBarcodeEnabled) {
+        setDraft({
+          name: "Produkt testowy",
+          weightG: 100,
+          proteinPer100g: 12,
+          carbsPer100g: 18,
+          fatPer100g: 4,
+          source: "barcode",
+          barcode: data,
+          section: params.section ?? null,
+          note: "Wynik mock z panelu developerskiego.",
+        });
+        return;
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+      try {
+        const result = await lookupProductByBarcode(data);
+        if (result.ok) {
+          setDraft({ ...result.draft, section: params.section ?? null });
+        } else {
+          setLookupError(result);
+          scanLockedRef.current = false;
+        }
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch {
+      setLookupError({
+        ok: false,
+        status: "network_error",
         barcode: data,
-        section: params.section ?? null,
-        note: "Wynik mock z panelu developerskiego.",
+        warning: "Nie udało się pobrać danych. Spróbuj ponownie.",
       });
+      scanLockedRef.current = false;
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const result = await lookupProductByBarcode(data);
-
-    if (result.ok) {
-      setDraft({ ...result.draft, section: params.section ?? null });
-    } else {
-      setLookupError(result);
-    }
-
-    setLoading(false);
   };
 
   const pulseStyle = {

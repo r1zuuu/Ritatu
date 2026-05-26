@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { LocalUser } from "../data/types";
 
-const CREDS = { login: "stas", password: "1234" };
+const CREDS = { login: "login", password: "1234" };
 const STORAGE_KEY = "ritatu:auth:loggedIn";
 
 const LOCAL_USER: LocalUser = {

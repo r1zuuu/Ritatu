@@ -8,8 +8,10 @@ export type IconName =
   | "barcode"
   | "camera"
   | "check"
+  | "chevron-down"
   | "chevron-left"
   | "chevron-right"
+  | "chevron-up"
   | "alert"
   | "clipboard"
   | "dumbbell"
@@ -44,8 +46,10 @@ const symbols: Record<IconName, string> = {
   barcode: "barcode_scanner",
   camera: "photo_camera",
   check: "check",
+  "chevron-down": "expand_more",
   "chevron-left": "chevron_left",
   "chevron-right": "chevron_right",
+  "chevron-up": "expand_less",
   alert: "warning",
   clipboard: "assignment",
   dumbbell: "fitness_center",

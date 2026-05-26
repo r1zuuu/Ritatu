@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Screen } from "../components/Screen";
@@ -9,7 +9,6 @@ import {
   CUSTOM_PRODUCTS_KEY,
   exportLocalData,
   getDeveloperSettings,
-  saveDeveloperSettings,
   seedDemoData,
   WEIGHTS_KEY,
 } from "../data/developerRepository";
@@ -21,27 +20,70 @@ import { colors } from "../theme/colors";
 import { typography } from "../theme/typography";
 
 export const ProfileScreen = () => {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { profile, saveProfile } = useUserProfile();
   const [settings, setSettings] = useState<DeveloperSettings | null>(null);
   const [exportJson, setExportJson] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
+  const [kcal, setKcal] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fat, setFat] = useState("");
+
   useEffect(() => {
     void getDeveloperSettings().then(setSettings);
   }, []);
 
-  const updateSettings = async (next: DeveloperSettings) => {
-    setSettings(next);
-    await saveDeveloperSettings(next);
+  useEffect(() => {
+    if (!profile) return;
+    setKcal(String(Math.round(profile.goalKcal ?? 0)));
+    setProtein(String(Math.round(profile.goalProteinG ?? 0)));
+    setCarbs(String(Math.round(profile.goalCarbsG ?? 0)));
+    setFat(String(Math.round(profile.goalFatG ?? 0)));
+  }, [profile]);
+
+  const parseGoal = (val: string) => {
+    const n = parseFloat(val.replace(",", "."));
+    return Number.isFinite(n) && n > 0 ? n : null;
   };
 
-  const clearMealsAndLocalData = async () => {
-    const keys = await AsyncStorage.getAllKeys();
-    const mealKeys = keys.filter((key) => key.startsWith("ritatu:meals:"));
-    await AsyncStorage.multiRemove([...mealKeys, WEIGHTS_KEY, CUSTOM_PRODUCTS_KEY]);
-    await clearProgressPhotos();
-    setMessage("Wyczyszczono posiłki, pomiary, zdjęcia i produkty własne.");
+  const saveGoals = async () => {
+    if (!profile) return;
+    try {
+      await saveProfile({
+        ...profile,
+        goalKcal: parseGoal(kcal) ?? profile.goalKcal,
+        goalProteinG: parseGoal(protein) ?? profile.goalProteinG,
+        goalCarbsG: parseGoal(carbs) ?? profile.goalCarbsG,
+        goalFatG: parseGoal(fat) ?? profile.goalFatG,
+      });
+      setMessage("Cele zapisane.");
+      setTimeout(() => setMessage(null), 2500);
+    } catch (e) {
+      setMessage(`Błąd: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const clearMealsAndLocalData = () => {
+    Alert.alert(
+      "Wyczyścić dane?",
+      "Usunięte zostaną wszystkie posiłki, pomiary, zdjęcia i własne produkty. Tej operacji nie można cofnąć.",
+      [
+        { text: "Anuluj", style: "cancel" },
+        {
+          text: "Wyczyść",
+          style: "destructive",
+          onPress: async () => {
+            const keys = await AsyncStorage.getAllKeys();
+            const mealKeys = keys.filter((key) => key.startsWith("ritatu:meals:"));
+            await AsyncStorage.multiRemove([...mealKeys, WEIGHTS_KEY, CUSTOM_PRODUCTS_KEY]);
+            await clearProgressPhotos();
+            setMessage("Wyczyszczono dane.");
+          },
+        },
+      ],
+    );
   };
 
   const resetOnboarding = async () => {
@@ -51,56 +93,46 @@ export const ProfileScreen = () => {
   };
 
   const seed = async () => {
-    if (!user) return;
-    await seedDemoData(user.uid, profile);
-    setSettings(await getDeveloperSettings());
-    setMessage("Dodano dane demo. Wróć na Home, aby je zobaczyć.");
+    if (!user) { setMessage("Błąd: brak użytkownika."); return; }
+    try {
+      await seedDemoData(user.uid, profile);
+      setSettings(await getDeveloperSettings());
+      setMessage("Dodano dane demo. Wróć na Home, aby je zobaczyć.");
+    } catch (e) {
+      setMessage(`Błąd seed: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   return (
     <Screen padded={false}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View style={styles.avatar}>
-            <Icon name="settings" size={24} color={colors.accent} />
+        <View style={styles.goalsCard}>
+          <View style={styles.cardHeader}>
+            <Icon name="gauge" size={20} color={colors.accent} />
+            <Text style={styles.cardTitle}>Cele dzienne</Text>
           </View>
-          <Text style={styles.eyebrow}>Profil</Text>
-          <Text style={styles.title}>{profile?.displayName ?? profile?.email ?? "Ritatu"}</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Metric label="Kalorie" value={`${Math.round(profile?.goalKcal ?? 0)} kcal`} />
-          <Metric label="Białko" value={`${Math.round(profile?.goalProteinG ?? 0)} g`} />
-          <Metric label="Węgle" value={`${Math.round(profile?.goalCarbsG ?? 0)} g`} />
-          <Metric label="Tłuszcze" value={`${Math.round(profile?.goalFatG ?? 0)} g`} />
+          <View style={styles.goalRow}>
+            <GoalField label="Kalorie" unit="kcal" value={kcal} onChangeText={setKcal} />
+            <GoalField label="Białko" unit="g" value={protein} onChangeText={setProtein} />
+          </View>
+          <View style={styles.goalRow}>
+            <GoalField label="Węglowodany" unit="g" value={carbs} onChangeText={setCarbs} />
+            <GoalField label="Tłuszcze" unit="g" value={fat} onChangeText={setFat} />
+          </View>
+          <Button title="Zapisz cele" icon="check" onPress={() => void saveGoals()} />
         </View>
 
         <View style={styles.devCard}>
-          <View style={styles.devHeader}>
+          <View style={styles.cardHeader}>
             <Icon name="settings" size={20} color={colors.accent} />
-            <Text style={styles.devTitle}>Opcje developerskie</Text>
+            <Text style={styles.cardTitle}>Opcje developerskie</Text>
           </View>
           <Text style={styles.devText}>Lokalne narzędzia do testowania tej prywatnej wersji aplikacji.</Text>
 
-          {settings ? (
-            <View style={styles.toggles}>
-              <Toggle
-                label="Mock skanera"
-                active={settings.mockBarcodeEnabled}
-                onPress={() => void updateSettings({ ...settings, mockBarcodeEnabled: !settings.mockBarcodeEnabled })}
-              />
-              <Toggle
-                label="Mock AI zdjęcia"
-                active={settings.mockPhotoAiEnabled}
-                onPress={() => void updateSettings({ ...settings, mockPhotoAiEnabled: !settings.mockPhotoAiEnabled })}
-              />
-            </View>
-          ) : null}
-
           <View style={styles.actions}>
-            <Button title="Seed demo" icon="sparkles" onPress={() => void seed()} />
+            <Button title="Seed demo" icon="sparkles" variant="secondary" onPress={() => void seed()} />
             <Button title="Reset onboardingu" icon="reset" variant="secondary" onPress={() => void resetOnboarding()} />
-            <Button title="Wyczyść dane lokalne" icon="trash" variant="danger" onPress={() => void clearMealsAndLocalData()} />
+            <Button title="Wyczyść dane lokalne" icon="trash" variant="secondary" onPress={clearMealsAndLocalData} />
             <Button
               title="Eksport JSON"
               icon="upload"
@@ -117,58 +149,48 @@ export const ProfileScreen = () => {
             <TextInput style={styles.exportBox} value={exportJson} multiline editable={false} />
           ) : null}
         </View>
-
-        <Button title="Wyloguj" icon="logout" variant="secondary" onPress={() => void signOut()} />
       </ScrollView>
     </Screen>
   );
 };
 
-function Metric({ label, value }: { label: string; value: string }) {
+function GoalField({ label, unit, value, onChangeText }: {
+  label: string;
+  unit: string;
+  value: string;
+  onChangeText: (v: string) => void;
+}) {
   return (
-    <View style={styles.metricRow}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
+    <View style={styles.goalField}>
+      <Text style={styles.goalLabel}>{label}</Text>
+      <View style={styles.goalInputRow}>
+        <TextInput
+          style={styles.goalInput}
+          value={value}
+          onChangeText={onChangeText}
+          keyboardType="number-pad"
+          selectTextOnFocus
+        />
+        <Text style={styles.goalUnit}>{unit}</Text>
+      </View>
     </View>
   );
 }
 
-function Toggle({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable style={({ pressed }) => [styles.toggle, active && styles.toggleActive, pressed && styles.pressed]} onPress={onPress}>
-      <Text style={[styles.toggleText, active && styles.toggleTextActive]}>{label}</Text>
-      <View style={[styles.switchTrack, active && styles.switchTrackActive]}>
-        <View style={[styles.switchKnob, active && styles.switchKnobActive]} />
-      </View>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  scroll: { gap: 16, padding: 20, paddingBottom: 32 },
-  header: { gap: 8 },
-  avatar: { alignItems: "center", backgroundColor: colors.accentA, borderColor: colors.accentB, borderRadius: 18, borderWidth: 1, height: 56, justifyContent: "center", width: 56 },
-  eyebrow: { ...typography.label, color: colors.accent, textTransform: "uppercase" },
-  title: { ...typography.title, color: colors.text },
-  card: { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 20, borderWidth: 1, padding: 16 },
-  metricRow: { alignItems: "center", borderBottomColor: colors.border, borderBottomWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingVertical: 10 },
-  metricLabel: { ...typography.label, color: colors.muted },
-  metricValue: { ...typography.section, color: colors.text },
+  scroll: { gap: 16, padding: 20, paddingBottom: 32, paddingTop: 36 },
+  goalsCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 22, borderWidth: 1, gap: 14, padding: 16 },
   devCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 22, borderWidth: 1, gap: 14, padding: 16 },
-  devHeader: { alignItems: "center", flexDirection: "row", gap: 8 },
-  devTitle: { ...typography.section, color: colors.text },
+  cardHeader: { alignItems: "center", flexDirection: "row", gap: 8 },
+  cardTitle: { ...typography.section, color: colors.text },
+  goalRow: { flexDirection: "row", gap: 10 },
+  goalField: { flex: 1, gap: 6 },
+  goalLabel: { ...typography.label, color: colors.muted },
+  goalInputRow: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", paddingHorizontal: 12, height: 48 },
+  goalInput: { flex: 1, ...typography.section, color: colors.text },
+  goalUnit: { ...typography.label, color: colors.mutedMid },
   devText: { ...typography.body, color: colors.muted },
-  toggles: { gap: 8 },
-  toggle: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.border, borderRadius: 14, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", padding: 12 },
-  toggleActive: { borderColor: colors.accentB },
-  toggleText: { ...typography.label, color: colors.text },
-  toggleTextActive: { color: colors.accent },
-  switchTrack: { backgroundColor: colors.borderMid, borderRadius: 999, height: 24, padding: 3, width: 46 },
-  switchTrackActive: { backgroundColor: colors.accent },
-  switchKnob: { backgroundColor: colors.text, borderRadius: 9, height: 18, width: 18 },
-  switchKnobActive: { transform: [{ translateX: 22 }], backgroundColor: colors.warmBlack },
   actions: { gap: 10 },
   message: { ...typography.label, color: colors.green },
   exportBox: { ...typography.label, backgroundColor: colors.card, borderColor: colors.border, borderRadius: 14, borderWidth: 1, color: colors.mutedMid, maxHeight: 220, minHeight: 140, padding: 12, textAlignVertical: "top" },
-  pressed: { opacity: 0.86, transform: [{ scale: 0.96 }] },
 });

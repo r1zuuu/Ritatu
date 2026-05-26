@@ -1,18 +1,20 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
-import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
+  AppState,
   DimensionValue,
   FlatList,
   Image,
+  Keyboard,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -21,6 +23,7 @@ import { Icon, type IconName } from "../components/Icon";
 import { calculateMealMacros, summarizeMeals } from "../core/macroCalculator";
 import { addMeal as addMealRepo, cacheMealsForDay, getCachedMealsForDay } from "../data/mealRepository";
 import {
+  deleteProgressPhoto,
   getProgressPhotos,
   persistProgressPhotoFile,
   saveProgressPhotos,
@@ -30,6 +33,7 @@ import { CUSTOM_PRODUCTS_KEY, WEIGHTS_KEY } from "../data/developerRepository";
 import { useAuth } from "../providers/AuthProvider";
 import { useUserProfile } from "../providers/UserProfileProvider";
 import { searchProductsByName, type OpenFoodFactsSearchItem } from "../services/openFoodFactsService";
+import { HistoryScreen } from "./HistoryScreen";
 import { colors } from "../theme/colors";
 import { typography } from "../theme/typography";
 
@@ -42,6 +46,7 @@ type FoodItem = {
   carbs: number;
   fat: number;
   per100: boolean;
+  portionWeightG?: number;
   custom?: boolean;
   code?: string;
   imageUrl?: string | null;
@@ -49,7 +54,7 @@ type FoodItem = {
 
 const SECTIONS = ["Śniadanie", "Obiad", "Kolacja", "Przekąska"] as const;
 type Section = typeof SECTIONS[number];
-type HomeTab = "diary" | "measurements";
+type HomeTab = "diary" | "measurements" | "history";
 
 const SECTION_COLORS: Record<Section, string> = {
   Śniadanie: colors.carbs,
@@ -59,16 +64,50 @@ const SECTION_COLORS: Record<Section, string> = {
 };
 
 const FOOD_DB: FoodItem[] = [
+  // Mięso i ryby
   { id: 10, name: "Kurczak, pierś", detail: "100 g", calories: 165, protein: 31, carbs: 0, fat: 3.6, per100: true },
-  { id: 11, name: "Ryż biały, gotowany", detail: "100 g", calories: 130, protein: 2.7, carbs: 28, fat: 0.3, per100: true },
-  { id: 12, name: "Brokuł", detail: "100 g", calories: 34, protein: 2.8, carbs: 6.6, fat: 0.4, per100: true },
-  { id: 13, name: "Jajko kurze", detail: "1 szt", calories: 77, protein: 6.5, carbs: 0.6, fat: 5.3, per100: false },
-  { id: 14, name: "Twaróg chudy", detail: "100 g", calories: 98, protein: 17.4, carbs: 3.1, fat: 1, per100: true },
-  { id: 15, name: "Ziemniaki, gotowane", detail: "100 g", calories: 87, protein: 1.9, carbs: 20, fat: 0.1, per100: true },
   { id: 16, name: "Łosoś, filet", detail: "100 g", calories: 208, protein: 20.4, carbs: 0, fat: 13.6, per100: true },
+  { id: 20, name: "Wołowina, mielona", detail: "100 g", calories: 215, protein: 20.7, carbs: 0, fat: 14.2, per100: true },
+  { id: 21, name: "Tuńczyk w wodzie", detail: "100 g", calories: 108, protein: 23.6, carbs: 0, fat: 1, per100: true },
+  // Nabiał
+  { id: 14, name: "Twaróg chudy", detail: "100 g", calories: 98, protein: 17.4, carbs: 3.1, fat: 1, per100: true },
   { id: 17, name: "Jogurt naturalny", detail: "100 g", calories: 61, protein: 3.5, carbs: 4.7, fat: 3.3, per100: true },
-  { id: 18, name: "Chleb żytni", detail: "1 kromka (40 g)", calories: 88, protein: 3.1, carbs: 17.2, fat: 0.8, per100: false },
+  { id: 13, name: "Jajko kurze", detail: "1 szt (60 g)", calories: 86, protein: 7.5, carbs: 0.6, fat: 5.8, per100: false, portionWeightG: 60 },
+  { id: 22, name: "Ser żółty", detail: "100 g", calories: 352, protein: 25.4, carbs: 1.3, fat: 27.8, per100: true },
+  { id: 23, name: "Mleko 2%", detail: "100 ml", calories: 50, protein: 3.4, carbs: 4.8, fat: 2, per100: true },
+  // Węglowodany
+  { id: 11, name: "Ryż biały, gotowany", detail: "100 g", calories: 130, protein: 2.7, carbs: 28, fat: 0.3, per100: true },
+  { id: 15, name: "Ziemniaki, gotowane", detail: "100 g", calories: 87, protein: 1.9, carbs: 20, fat: 0.1, per100: true },
+  { id: 18, name: "Chleb żytni", detail: "1 kromka (40 g)", calories: 88, protein: 3.1, carbs: 17.2, fat: 0.8, per100: false, portionWeightG: 40 },
+  { id: 24, name: "Makaron, gotowany", detail: "100 g", calories: 131, protein: 5, carbs: 25, fat: 1.1, per100: true },
+  { id: 25, name: "Płatki owsiane", detail: "100 g", calories: 379, protein: 13.2, carbs: 67.7, fat: 7, per100: true },
+  { id: 26, name: "Chleb pszenny", detail: "1 kromka (35 g)", calories: 83, protein: 2.7, carbs: 15.8, fat: 0.9, per100: false, portionWeightG: 35 },
+  // Warzywa
+  { id: 12, name: "Brokuł", detail: "100 g", calories: 34, protein: 2.8, carbs: 6.6, fat: 0.4, per100: true },
+  { id: 27, name: "Marchewka", detail: "100 g", calories: 41, protein: 0.9, carbs: 9.6, fat: 0.2, per100: true },
+  { id: 28, name: "Pomidor", detail: "100 g", calories: 18, protein: 0.9, carbs: 3.9, fat: 0.2, per100: true },
+  { id: 29, name: "Ogórek", detail: "100 g", calories: 15, protein: 0.6, carbs: 3.6, fat: 0.1, per100: true },
+  { id: 30, name: "Papryka czerwona", detail: "100 g", calories: 31, protein: 1, carbs: 6, fat: 0.3, per100: true },
+  { id: 31, name: "Szpinak", detail: "100 g", calories: 23, protein: 2.9, carbs: 3.6, fat: 0.4, per100: true },
+  { id: 32, name: "Cebula", detail: "100 g", calories: 40, protein: 1.1, carbs: 9.3, fat: 0.1, per100: true },
+  { id: 33, name: "Czosnek", detail: "1 ząbek (5 g)", calories: 7, protein: 0.3, carbs: 1.5, fat: 0, per100: false, portionWeightG: 5 },
+  { id: 34, name: "Awokado", detail: "100 g", calories: 160, protein: 2, carbs: 8.5, fat: 14.7, per100: true },
+  // Owoce
+  { id: 35, name: "Banan", detail: "100 g", calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3, per100: true },
+  { id: 36, name: "Jabłko", detail: "100 g", calories: 52, protein: 0.3, carbs: 13.8, fat: 0.2, per100: true },
+  { id: 37, name: "Pomarańcza", detail: "100 g", calories: 47, protein: 0.9, carbs: 11.8, fat: 0.1, per100: true },
+  { id: 38, name: "Truskawki", detail: "100 g", calories: 32, protein: 0.7, carbs: 7.7, fat: 0.3, per100: true },
+  { id: 39, name: "Winogrona", detail: "100 g", calories: 69, protein: 0.7, carbs: 18.1, fat: 0.2, per100: true },
+  { id: 40, name: "Gruszka", detail: "100 g", calories: 57, protein: 0.4, carbs: 15.2, fat: 0.1, per100: true },
+  { id: 41, name: "Kiwi", detail: "100 g", calories: 61, protein: 1.1, carbs: 14.7, fat: 0.5, per100: true },
+  { id: 42, name: "Borówki", detail: "100 g", calories: 57, protein: 0.7, carbs: 14.5, fat: 0.3, per100: true },
+  { id: 43, name: "Mango", detail: "100 g", calories: 60, protein: 0.8, carbs: 15, fat: 0.4, per100: true },
+  { id: 44, name: "Ananas", detail: "100 g", calories: 50, protein: 0.5, carbs: 13.1, fat: 0.1, per100: true },
+  // Tłuszcze i przekąski
   { id: 19, name: "Migdały", detail: "100 g", calories: 579, protein: 21.2, carbs: 21.7, fat: 49.9, per100: true },
+  { id: 45, name: "Oliwa z oliwek", detail: "1 łyżka (10 g)", calories: 88, protein: 0, carbs: 0, fat: 10, per100: false, portionWeightG: 10 },
+  { id: 46, name: "Masło orzechowe", detail: "100 g", calories: 588, protein: 25, carbs: 20, fat: 50, per100: true },
+  { id: 47, name: "Orzechy włoskie", detail: "100 g", calories: 654, protein: 15.2, carbs: 13.7, fat: 65.2, per100: true },
 ];
 
 const parseDecimal = (value: string) => Number(value.replace(",", "."));
@@ -123,10 +162,11 @@ function Sheet({ visible, onClose, title, children, height = "88%" }: {
   children: ReactNode;
   height?: DimensionValue;
 }) {
+  const close = () => { Keyboard.dismiss(); onClose(); };
   return (
-    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <Modal transparent visible={visible} animationType="slide" onRequestClose={close} statusBarTranslucent>
       <View style={sheet.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} />
         <View style={[sheet.surface, { height }]}>
           <View style={sheet.handle} />
           {title ? (
@@ -136,7 +176,7 @@ function Sheet({ visible, onClose, title, children, height = "88%" }: {
                 accessibilityRole="button"
                 accessibilityLabel="Zamknij"
                 style={({ pressed }) => [sheet.close, pressed && sheet.pressed]}
-                onPress={onClose}
+                onPress={close}
               >
                 <Icon name="x" size={18} color={colors.mutedMid} />
               </Pressable>
@@ -149,24 +189,26 @@ function Sheet({ visible, onClose, title, children, height = "88%" }: {
   );
 }
 
-function IconButton({ icon, label, onPress, tone = "default" }: {
+function IconButton({ icon, label, onPress, tone = "default", disabled = false }: {
   icon: IconName;
   label: string;
   onPress: () => void;
   tone?: "default" | "accent";
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress}
       style={({ pressed }) => [
         ui.iconButton,
         tone === "accent" && ui.iconButtonAccent,
-        pressed && ui.pressed,
+        disabled && ui.disabled,
+        !disabled && pressed && ui.pressed,
       ]}
     >
-      <Icon name={icon} size={18} color={tone === "accent" ? colors.accent : colors.text} />
+      <Icon name={icon} size={18} color={disabled ? colors.muted : tone === "accent" ? colors.accent : colors.text} />
     </Pressable>
   );
 }
@@ -183,19 +225,20 @@ function MacroBar({ label, current, goal, color }: { label: string; current: num
         </Text>
       </View>
       <View style={macro.track}>
-        <View style={[macro.fill, { width: `${pct}%`, backgroundColor: pct >= 100 ? colors.danger : color }]} />
+        <View style={[macro.fill, { width: `${pct}%`, backgroundColor: color }]} />
       </View>
     </View>
   );
 }
 
-function DiaryView({ meals, dateOffset, setDateOffset, profile, onAddFood, onRemoveMeal }: {
+function DiaryView({ meals, dateOffset, setDateOffset, profile, onAddFood, onRemoveMeal, onMoveMeal }: {
   meals: MealEntry[];
   dateOffset: number;
   setDateOffset: (value: number) => void;
   profile: ReturnType<typeof useUserProfile>["profile"];
   onAddFood: (section: Section) => void;
   onRemoveMeal: (id: string) => void;
+  onMoveMeal: (id: string, toSection: Section) => void;
 }) {
   const totals = useMemo(() => {
     const summary = summarizeMeals(meals);
@@ -224,11 +267,20 @@ function DiaryView({ meals, dateOffset, setDateOffset, profile, onAddFood, onRem
     <ScrollView contentContainerStyle={diary.scroll} showsVerticalScrollIndicator={false}>
       <View style={diary.dateRow}>
         <IconButton icon="chevron-left" label="Poprzedni dzień" onPress={() => setDateOffset(dateOffset - 1)} />
-        <View style={diary.dateCenter}>
+        <Pressable
+          style={({ pressed }) => [diary.dateCenter, pressed && { opacity: 0.7 }]}
+          onPress={() => dateOffset !== 0 && setDateOffset(0)}
+          accessibilityRole="button"
+          accessibilityLabel="Wróć do dzisiaj"
+        >
           <Text style={diary.dateLabel}>{formatDateLabel(dateOffset)}</Text>
           <Text style={diary.dateSub}>{formatDateSub(dateOffset)}</Text>
+          {dateOffset !== 0 ? <Text style={diary.todayPill}>Dziś →</Text> : null}
+        </Pressable>
+        <View style={diary.dateRowRight}>
+          <IconButton icon="chevron-right" label="Następny dzień" disabled={dateOffset >= 0} onPress={() => setDateOffset(dateOffset + 1)} />
+          <IconButton icon="settings" label="Ustawienia" onPress={() => router.push("/profile")} />
         </View>
-        <IconButton icon="chevron-right" label="Następny dzień" onPress={() => dateOffset < 0 && setDateOffset(dateOffset + 1)} />
       </View>
 
       <View style={diary.summaryCard}>
@@ -283,7 +335,22 @@ function DiaryView({ meals, dateOffset, setDateOffset, profile, onAddFood, onRem
                     {sectionMeals.map((meal, mealIndex) => {
                       const macros = calculateMealMacros(meal, meal.weightG);
                       return (
-                        <View key={meal.id} style={[diary.foodRow, mealIndex > 0 && diary.foodBorder]}>
+                        <Pressable
+                          key={meal.id}
+                          style={({ pressed }) => [diary.foodRow, mealIndex > 0 && diary.foodBorder, pressed && { opacity: 0.75 }]}
+                          onLongPress={() => {
+                            const targets = SECTIONS.filter((s) => s !== section);
+                            Alert.alert(
+                              meal.name,
+                              "Przenieś do:",
+                              [
+                                ...targets.map((s) => ({ text: s, onPress: () => onMoveMeal(meal.id, s) })),
+                                { text: "Anuluj", style: "cancel" as const },
+                              ],
+                            );
+                          }}
+                          delayLongPress={400}
+                        >
                           <View style={diary.foodIcon}>
                             <Icon name={meal.source === "barcode" ? "barcode" : meal.source === "photo" ? "camera" : "utensils"} size={17} color={colors.accent} />
                           </View>
@@ -300,7 +367,7 @@ function DiaryView({ meals, dateOffset, setDateOffset, profile, onAddFood, onRem
                           >
                             <Icon name="x" size={14} color={colors.muted} />
                           </Pressable>
-                        </View>
+                        </Pressable>
                       );
                     })}
                   </View>
@@ -324,22 +391,25 @@ function DiaryView({ meals, dateOffset, setDateOffset, profile, onAddFood, onRem
   );
 }
 
-function AddFoodSheet({ visible, section, onClose, onSelectFood, customProducts, onOpenCreateCustom, onScanBarcode, onAnalyzePhoto, onManualEntry }: {
+function AddFoodSheet({ visible, section, uid, onClose, onSelectFood, customProducts, onOpenCreateCustom, onQuickAdd, onScanBarcode, onAnalyzePhoto, onManualEntry }: {
   visible: boolean;
   section: string;
+  uid: string;
   onClose: () => void;
   onSelectFood: (food: FoodItem) => void;
   customProducts: FoodItem[];
   onOpenCreateCustom: () => void;
+  onQuickAdd: () => void;
   onScanBarcode: () => void;
   onAnalyzePhoto: () => void;
   onManualEntry: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"search" | "recent" | "favorites" | "custom">("search");
+  const [activeTab, setActiveTab] = useState<"search" | "recent" | "custom">("search");
   const [remoteFoods, setRemoteFoods] = useState<FoodItem[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [recentFoods, setRecentFoods] = useState<FoodItem[]>([]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -376,22 +446,67 @@ function AddFoodSheet({ visible, section, onClose, onSelectFood, customProducts,
     };
   }, [activeTab, query]);
 
+  useEffect(() => {
+    if (activeTab !== "recent") return;
+    let cancelled = false;
+    const load = async () => {
+      const seen = new Map<string, FoodItem>();
+      for (let i = 0; i < 7; i++) {
+        const date = dateWithOffset(-i);
+        const meals = await getCachedMealsForDay(uid, date);
+        for (const m of meals) {
+          const key = m.name.toLowerCase();
+          if (!seen.has(key)) {
+            seen.set(key, {
+              id: `recent:${key}`,
+              name: m.name,
+              detail: "100 g",
+              calories: Math.round(((m.proteinPer100g * 4) + (m.carbsPer100g * 4) + (m.fatPer100g * 9))),
+              protein: m.proteinPer100g,
+              carbs: m.carbsPer100g,
+              fat: m.fatPer100g,
+              per100: true,
+            });
+          }
+        }
+      }
+      if (!cancelled) setRecentFoods([...seen.values()].slice(0, 20));
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [activeTab, uid]);
+
   const listData = useMemo(() => {
     if (activeTab === "search") {
       const trimmed = query.trim().toLowerCase();
-      if (trimmed.length >= 3 && remoteFoods.length > 0) return remoteFoods;
-      if (trimmed.length >= 1) return FOOD_DB.filter((food) => food.name.toLowerCase().includes(trimmed));
-      return FOOD_DB;
+      if (trimmed.length < 1) return FOOD_DB;
+
+      const localMatches = FOOD_DB.filter((f) => f.name.toLowerCase().includes(trimmed));
+
+      if (trimmed.length < 3 || remoteFoods.length === 0) return localMatches;
+
+      const localNames = new Set(localMatches.map((f) => f.name.toLowerCase()));
+      const onlyRemote = remoteFoods.filter((f) => !localNames.has(f.name.toLowerCase()));
+      const merged = [...localMatches, ...onlyRemote];
+
+      const score = (name: string, isLocal: boolean) => {
+        const n = name.toLowerCase();
+        const base = n === trimmed ? 30 : n.startsWith(trimmed) ? 20 : 10;
+        return base + (isLocal ? 1 : 0);
+      };
+
+      return merged.sort((a, b) =>
+        score(b.name, typeof b.id === "number") - score(a.name, typeof a.id === "number"),
+      );
     }
-    if (activeTab === "recent") return FOOD_DB.slice(0, 5);
+    if (activeTab === "recent") return recentFoods;
     if (activeTab === "custom") return customProducts;
     return [];
-  }, [activeTab, customProducts, query, remoteFoods]);
+  }, [activeTab, customProducts, query, remoteFoods, recentFoods]);
 
   const tabs = [
     { id: "search" as const, label: "Szukaj" },
     { id: "recent" as const, label: "Ostatnie" },
-    { id: "favorites" as const, label: "Ulubione" },
     { id: "custom" as const, label: "Własne" },
   ];
 
@@ -422,6 +537,7 @@ function AddFoodSheet({ visible, section, onClose, onSelectFood, customProducts,
           <ActionTile icon="barcode" label="Skan" onPress={onScanBarcode} />
           <ActionTile icon="camera" label="Zdjęcie" onPress={onAnalyzePhoto} />
           <ActionTile icon="plus" label="Ręcznie" onPress={onManualEntry} />
+          <ActionTile icon="check" label="Jednoraz." onPress={onQuickAdd} />
         </View>
 
         <View style={add.tabs}>
@@ -441,12 +557,6 @@ function AddFoodSheet({ visible, section, onClose, onSelectFood, customProducts,
           })}
         </View>
 
-        {activeTab === "search" && query.trim().length >= 3 ? (
-          <Text style={add.status}>
-            {searching ? "Szukam w Open Food Facts..." : searchError ?? (remoteFoods.length ? "Wyniki z Open Food Facts" : "Lokalne sugestie")}
-          </Text>
-        ) : null}
-
         {activeTab === "custom" ? (
           <Pressable style={({ pressed }) => [add.createCustom, pressed && ui.pressed]} onPress={onOpenCreateCustom}>
             <Icon name="plus" size={18} color={colors.accent} />
@@ -461,11 +571,18 @@ function AddFoodSheet({ visible, section, onClose, onSelectFood, customProducts,
           contentContainerStyle={add.listContent}
           ListEmptyComponent={
             <View style={add.empty}>
-              <Icon name={activeTab === "favorites" ? "apple" : "search"} size={28} color={colors.muted} />
+              <Icon name="search" size={28} color={colors.muted} />
               <Text style={add.emptyText}>
-                {activeTab === "favorites" ? "Brak ulubionych" : activeTab === "custom" ? "Brak własnych produktów" : "Brak wyników"}
+                {activeTab === "custom" ? "Brak własnych produktów" : activeTab === "recent" ? "Brak historii posiłków" : "Brak wyników"}
               </Text>
             </View>
+          }
+          ListFooterComponent={
+            activeTab === "search" && query.trim().length >= 3 && (searching || searchError) ? (
+              <Text style={add.status}>
+                {searching ? "Szukam w Open Food Facts..." : searchError ?? ""}
+              </Text>
+            ) : null
           }
           renderItem={({ item, index }) => (
             <Pressable
@@ -508,17 +625,20 @@ function ActionTile({ icon, label, onPress }: { icon: IconName; label: string; o
   );
 }
 
-function FoodDetailSheet({ visible, food, section, onClose, onAdd }: {
+function FoodDetailSheet({ visible, food, section, lastAmounts, onClose, onAdd }: {
   visible: boolean;
   food: FoodItem | null;
   section: string;
+  lastAmounts: Map<string | number, string>;
   onClose: () => void;
   onAdd: (food: FoodItem, amount: number) => void;
 }) {
   const [amountInput, setAmountInput] = useState("100");
 
   useEffect(() => {
-    if (food) setAmountInput(food.per100 ? "100" : "1");
+    if (!food) return;
+    const saved = lastAmounts.get(food.id);
+    setAmountInput(saved ?? (food.per100 ? "100" : "1"));
   }, [food]);
 
   if (!food) return null;
@@ -526,16 +646,23 @@ function FoodDetailSheet({ visible, food, section, onClose, onAdd }: {
   const parsedAmount = parseDecimal(amountInput);
   const hasValidAmount = Number.isFinite(parsedAmount) && parsedAmount > 0;
   const amount = hasValidAmount ? parsedAmount : 0;
-  const multiplier = food.per100 ? amount / 100 : 1;
+  const multiplier = food.per100 ? amount / 100 : amount;
   const kcal = Math.round(food.calories * multiplier);
   const protein = Math.round(food.protein * multiplier * 10) / 10;
   const carbs = Math.round(food.carbs * multiplier * 10) / 10;
   const fat = Math.round(food.fat * multiplier * 10) / 10;
-  const step = food.per100 ? 10 : 1;
+  const step = food.per100 ? 10 : 0.5;
+  const portionW = food.portionWeightG ?? 100;
+  const displayWeightG = food.per100 ? amount : Math.round(amount * portionW);
+
+  const updateAmount = (val: string) => {
+    setAmountInput(val);
+    lastAmounts.set(food.id, val);
+  };
 
   const changeAmount = (delta: number) => {
     const base = hasValidAmount ? parsedAmount : 1;
-    setAmountInput(formatDecimal(Math.max(1, base + delta), food.per100 ? 0 : 1));
+    updateAmount(formatDecimal(Math.max(1, base + delta), food.per100 ? 0 : 1));
   };
 
   return (
@@ -567,19 +694,21 @@ function FoodDetailSheet({ visible, food, section, onClose, onAdd }: {
         </View>
 
         <View style={detail.amountCard}>
-          <Text style={detail.amountLabel}>{food.per100 ? "Ilość (gramy)" : "Liczba porcji"}</Text>
+          <Text style={detail.amountLabel}>
+            {food.per100 ? "Ilość (gramy)" : `Liczba porcji${hasValidAmount && !food.per100 ? ` · ${displayWeightG} g` : ""}`}
+          </Text>
           <View style={detail.amountRow}>
             <IconButton icon="minus" label="Zmniejsz ilość" onPress={() => changeAmount(-step)} />
             <View style={detail.amountCenter}>
               <TextInput
                 style={detail.amountInput}
                 value={amountInput}
-                onChangeText={setAmountInput}
+                onChangeText={updateAmount}
                 keyboardType="decimal-pad"
                 selectTextOnFocus
                 accessibilityLabel={food.per100 ? "Gramatura produktu" : "Liczba porcji"}
               />
-              <Text style={detail.unit}>{food.per100 ? "g" : "szt"}</Text>
+              <Text style={detail.unit}>{food.per100 ? "g" : "×"}</Text>
             </View>
             <IconButton icon="plus" label="Zwiększ ilość" tone="accent" onPress={() => changeAmount(step)} />
           </View>
@@ -609,12 +738,13 @@ function MacroTile({ label, value, color }: { label: string; value: number; colo
   );
 }
 
-function MeasurementsView({ weights, profile, progressPhotos, onAddWeight, onAddPhoto }: {
+function MeasurementsView({ weights, profile, progressPhotos, onAddWeight, onAddPhoto, onDeletePhoto }: {
   weights: WeightEntry[];
   profile: ReturnType<typeof useUserProfile>["profile"];
   progressPhotos: ProgressPhoto[];
   onAddWeight: () => void;
   onAddPhoto: () => void;
+  onDeletePhoto: (id: string) => Promise<void>;
 }) {
   const current = weights.at(-1);
   const start = weights.at(0);
@@ -676,7 +806,17 @@ function MeasurementsView({ weights, profile, progressPhotos, onAddWeight, onAdd
             <View key={photo.id} style={measure.photoCard}>
               <Image source={{ uri: photo.uri }} style={measure.photoImage} />
               <View style={measure.photoMeta}>
-                <Text style={measure.photoAngle}>{angleLabel(photo.angle)}</Text>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={measure.photoAngle}>{angleLabel(photo.angle)}</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Usuń zdjęcie ${angleLabel(photo.angle)}`}
+                    style={({ pressed }) => [measure.photoDelete, pressed && ui.pressed]}
+                    onPress={() => void onDeletePhoto(photo.id)}
+                  >
+                    <Icon name="x" size={13} color={colors.muted} />
+                  </Pressable>
+                </View>
                 <Text style={measure.photoDate}>{formatShortDate(photo.createdAt)}</Text>
               </View>
             </View>
@@ -810,16 +950,23 @@ function StatCard({ label, value, color }: { label: string; value: string; color
   );
 }
 
-function AddWeightSheet({ visible, onClose, onSave }: {
+function AddWeightSheet({ visible, onClose, onSave, lastWeight }: {
   visible: boolean;
   onClose: () => void;
   onSave: (kg: number) => void;
+  lastWeight?: number;
 }) {
-  const [value, setValue] = useState("82.0");
+  const defaultVal = lastWeight != null ? formatDecimal(lastWeight, 1) : "";
+  const [value, setValue] = useState(defaultVal);
+
+  useEffect(() => {
+    if (visible) setValue(lastWeight != null ? formatDecimal(lastWeight, 1) : "");
+  }, [visible, lastWeight]);
+
   const parsed = parseDecimal(value);
   const valid = Number.isFinite(parsed) && parsed >= 30 && parsed <= 250;
   const change = (delta: number) => {
-    const base = Number.isFinite(parsed) ? parsed : 82;
+    const base = Number.isFinite(parsed) ? parsed : (lastWeight ?? 80);
     setValue(formatDecimal(Math.min(250, Math.max(30, base + delta)), 1));
   };
 
@@ -942,6 +1089,61 @@ function AddProgressPhotoSheet({ visible, onClose, onSave, currentWeight }: {
   );
 }
 
+function QuickAddSheet({ visible, section, onClose, onConfirm }: {
+  visible: boolean;
+  section: string;
+  onClose: () => void;
+  onConfirm: (food: FoodItem) => void;
+}) {
+  const [name, setName] = useState("");
+  const [kcal, setKcal] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fat, setFat] = useState("");
+  const [portionWeight, setPortionWeight] = useState("100");
+  const valid = name.trim().length > 0 && Number.isFinite(parseDecimal(kcal));
+
+  const reset = () => {
+    setName(""); setKcal(""); setProtein(""); setCarbs(""); setFat(""); setPortionWeight("100");
+  };
+
+  const confirm = () => {
+    const pw = parseDecimal(portionWeight);
+    const portionWeightG = Number.isFinite(pw) && pw > 0 ? pw : 100;
+    onConfirm({
+      id: Date.now(),
+      name: name.trim(),
+      detail: `1 porcja · ${portionWeightG} g`,
+      calories: parseDecimal(kcal) || 0,
+      protein: parseDecimal(protein) || 0,
+      carbs: parseDecimal(carbs) || 0,
+      fat: parseDecimal(fat) || 0,
+      per100: false,
+      portionWeightG,
+    });
+    reset();
+  };
+
+  return (
+    <Sheet visible={visible} onClose={() => { reset(); onClose(); }} title={`Jednorazowo → ${section}`} height="88%">
+      <ScrollView contentContainerStyle={custom.scroll} keyboardShouldPersistTaps="handled">
+        <Field label="Nazwa potrawy" value={name} onChangeText={setName} />
+        <Field label="Gramatura porcji (g)" value={portionWeight} onChangeText={setPortionWeight} keyboardType="decimal-pad" />
+        <Field label="Kalorie na porcję" value={kcal} onChangeText={setKcal} keyboardType="decimal-pad" featured />
+        <Text style={custom.hint}>Makra na całą porcję</Text>
+        <View style={custom.macroGrid}>
+          <Field label="Białko (g)" value={protein} onChangeText={setProtein} keyboardType="decimal-pad" compact />
+          <Field label="Węgle (g)" value={carbs} onChangeText={setCarbs} keyboardType="decimal-pad" compact />
+          <Field label="Tłuszcze (g)" value={fat} onChangeText={setFat} keyboardType="decimal-pad" compact />
+        </View>
+        <Pressable disabled={!valid} style={({ pressed }) => [ui.cta, !valid && ui.disabled, pressed && valid && ui.pressed]} onPress={confirm}>
+          <Text style={ui.ctaText}>Dodaj do {section}</Text>
+        </Pressable>
+      </ScrollView>
+    </Sheet>
+  );
+}
+
 function CreateCustomSheet({ visible, onClose, onSave }: {
   visible: boolean;
   onClose: () => void;
@@ -952,18 +1154,22 @@ function CreateCustomSheet({ visible, onClose, onSave }: {
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
   const [fat, setFat] = useState("");
+  const [portionWeight, setPortionWeight] = useState("100");
   const valid = name.trim().length > 0 && Number.isFinite(parseDecimal(kcal));
 
   const save = () => {
+    const pw = parseDecimal(portionWeight);
+    const portionWeightG = Number.isFinite(pw) && pw > 0 ? pw : 100;
     onSave({
       id: Date.now(),
       name: name.trim(),
-      detail: "1 porcja",
+      detail: `1 porcja · ${portionWeightG} g`,
       calories: parseDecimal(kcal) || 0,
       protein: parseDecimal(protein) || 0,
       carbs: parseDecimal(carbs) || 0,
       fat: parseDecimal(fat) || 0,
       per100: false,
+      portionWeightG,
       custom: true,
     });
     setName("");
@@ -971,17 +1177,20 @@ function CreateCustomSheet({ visible, onClose, onSave }: {
     setProtein("");
     setCarbs("");
     setFat("");
+    setPortionWeight("100");
   };
 
   return (
     <Sheet visible={visible} onClose={onClose} title="Nowy produkt" height="88%">
       <ScrollView contentContainerStyle={custom.scroll} keyboardShouldPersistTaps="handled">
         <Field label="Nazwa produktu" value={name} onChangeText={setName} />
-        <Field label="Kalorie" value={kcal} onChangeText={setKcal} keyboardType="decimal-pad" featured />
+        <Field label="Gramatura 1 porcji (g)" value={portionWeight} onChangeText={setPortionWeight} keyboardType="decimal-pad" />
+        <Field label="Kalorie na porcję" value={kcal} onChangeText={setKcal} keyboardType="decimal-pad" featured />
+        <Text style={custom.hint}>Makra na całą porcję</Text>
         <View style={custom.macroGrid}>
-          <Field label="Białko" value={protein} onChangeText={setProtein} keyboardType="decimal-pad" compact />
-          <Field label="Węgle" value={carbs} onChangeText={setCarbs} keyboardType="decimal-pad" compact />
-          <Field label="Tłuszcze" value={fat} onChangeText={setFat} keyboardType="decimal-pad" compact />
+          <Field label="Białko (g)" value={protein} onChangeText={setProtein} keyboardType="decimal-pad" compact />
+          <Field label="Węgle (g)" value={carbs} onChangeText={setCarbs} keyboardType="decimal-pad" compact />
+          <Field label="Tłuszcze (g)" value={fat} onChangeText={setFat} keyboardType="decimal-pad" compact />
         </View>
         <Pressable disabled={!valid} style={({ pressed }) => [ui.cta, !valid && ui.disabled, pressed && valid && ui.pressed]} onPress={save}>
           <Text style={ui.ctaText}>Zapisz produkt</Text>
@@ -1017,6 +1226,7 @@ function Field({ label, value, onChangeText, keyboardType = "default", compact, 
 function BottomNav({ tab, setTab, insetBottom }: { tab: HomeTab; setTab: (tab: HomeTab) => void; insetBottom: number }) {
   const tabs: Array<{ id: HomeTab; label: string; icon: IconName }> = [
     { id: "diary", label: "Dziennik", icon: "clipboard" },
+    { id: "history", label: "Historia", icon: "activity" },
     { id: "measurements", label: "Pomiary", icon: "bar-chart" },
   ];
 
@@ -1026,7 +1236,9 @@ function BottomNav({ tab, setTab, insetBottom }: { tab: HomeTab; setTab: (tab: H
         const active = tab === item.id;
         return (
           <Pressable key={item.id} style={({ pressed }) => [nav.item, pressed && ui.pressed]} onPress={() => setTab(item.id)}>
-            <Icon name={item.icon} size={22} color={active ? colors.accent : colors.muted} />
+            <View style={[nav.iconWrap, active && nav.iconWrapActive]}>
+              <Icon name={item.icon} size={20} color={active ? colors.accent : colors.muted} />
+            </View>
             <Text style={[nav.label, active && nav.labelActive]}>{item.label}</Text>
           </Pressable>
         );
@@ -1049,6 +1261,11 @@ function formatShortDate(date: Date) {
   return `${String(date.getDate()).padStart(2, "0")}.${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function todayDateKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
 export const HomeScreen = () => {
   const { user } = useAuth();
   const { profile } = useUserProfile();
@@ -1063,8 +1280,27 @@ export const HomeScreen = () => {
   const [addFoodSection, setAddFoodSection] = useState<Section | null>(null);
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [showCreateCustom, setShowCreateCustom] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAddSection, setQuickAddSection] = useState<Section | null>(null);
   const [showAddWeight, setShowAddWeight] = useState(false);
   const [showAddPhoto, setShowAddPhoto] = useState(false);
+  const lastAmountsRef = useRef<Map<string | number, string>>(new Map());
+
+  // Reset dateOffset to 0 and refresh when app returns from background after midnight
+  useEffect(() => {
+    const lastDateKey = { current: todayDateKey() };
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        const newKey = todayDateKey();
+        if (newKey !== lastDateKey.current) {
+          lastDateKey.current = newKey;
+          setDateOffset(0);
+          setRefreshKey((k) => k + 1);
+        }
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -1110,18 +1346,25 @@ export const HomeScreen = () => {
     setCustomProducts(next);
   }, []);
 
-  const handleAddConfirm = useCallback(async (food: FoodItem, amount: number) => {
-    if (!user || !addFoodSection) return;
+  const handleAddConfirm = useCallback(async (food: FoodItem, amount: number, sectionOverride?: Section) => {
+    if (!user) return;
+    const section = sectionOverride ?? addFoodSection;
+    if (!section) return;
+    const pw = food.portionWeightG ?? 100;
+    const weightG = food.per100 ? amount : amount * pw;
+    const proteinPer100g = food.per100 ? food.protein : (pw > 0 ? (food.protein / pw) * 100 : 0);
+    const carbsPer100g = food.per100 ? food.carbs : (pw > 0 ? (food.carbs / pw) * 100 : 0);
+    const fatPer100g = food.per100 ? food.fat : (pw > 0 ? (food.fat / pw) * 100 : 0);
     await addMealRepo({
       userId: user.uid,
       name: food.name,
-      weightG: food.per100 ? amount : amount * 100,
-      proteinPer100g: food.protein,
-      carbsPer100g: food.carbs,
-      fatPer100g: food.fat,
+      weightG,
+      proteinPer100g,
+      carbsPer100g,
+      fatPer100g,
       timestamp: dateWithOffset(dateOffset),
       source: food.code ? "barcode" : "manual",
-      section: addFoodSection,
+      section,
       barcode: food.code ?? null,
       photoUrl: food.imageUrl ?? null,
     });
@@ -1134,6 +1377,14 @@ export const HomeScreen = () => {
     if (!user) return;
     const date = dateWithOffset(dateOffset);
     const updated = meals.filter((meal) => meal.id !== id);
+    await cacheMealsForDay(user.uid, date, updated);
+    setMeals(updated);
+  }, [dateOffset, meals, user]);
+
+  const handleMoveMeal = useCallback(async (id: string, toSection: Section) => {
+    if (!user) return;
+    const date = dateWithOffset(dateOffset);
+    const updated = meals.map((m) => m.id === id ? { ...m, section: toSection } : m);
     await cacheMealsForDay(user.uid, date, updated);
     setMeals(updated);
   }, [dateOffset, meals, user]);
@@ -1155,6 +1406,11 @@ export const HomeScreen = () => {
     setProgressPhotos(next);
   }, [progressPhotos]);
 
+  const handleDeletePhoto = useCallback(async (id: string) => {
+    const next = await deleteProgressPhoto(id);
+    setProgressPhotos(next);
+  }, []);
+
   const currentWeight = weights.at(-1)?.weightKg;
 
   return (
@@ -1168,7 +1424,10 @@ export const HomeScreen = () => {
             profile={profile}
             onAddFood={setAddFoodSection}
             onRemoveMeal={handleRemoveMeal}
+            onMoveMeal={handleMoveMeal}
           />
+        ) : tab === "history" ? (
+          <HistoryScreen />
         ) : (
           <MeasurementsView
             weights={weights}
@@ -1176,6 +1435,7 @@ export const HomeScreen = () => {
             progressPhotos={progressPhotos}
             onAddWeight={() => setShowAddWeight(true)}
             onAddPhoto={() => setShowAddPhoto(true)}
+            onDeletePhoto={handleDeletePhoto}
           />
         )}
       </View>
@@ -1185,10 +1445,16 @@ export const HomeScreen = () => {
       <AddFoodSheet
         visible={addFoodSection !== null}
         section={addFoodSection ?? ""}
+        uid={user?.uid ?? ""}
         onClose={() => setAddFoodSection(null)}
         onSelectFood={setSelectedFood}
         customProducts={customProducts}
         onOpenCreateCustom={() => setShowCreateCustom(true)}
+        onQuickAdd={() => {
+          setQuickAddSection(addFoodSection);
+          setAddFoodSection(null);
+          setShowQuickAdd(true);
+        }}
         onScanBarcode={() => {
           const section = addFoodSection ?? "";
           setAddFoodSection(null);
@@ -1210,6 +1476,7 @@ export const HomeScreen = () => {
         visible={selectedFood !== null}
         food={selectedFood}
         section={addFoodSection ?? ""}
+        lastAmounts={lastAmountsRef.current}
         onClose={() => setSelectedFood(null)}
         onAdd={handleAddConfirm}
       />
@@ -1223,7 +1490,19 @@ export const HomeScreen = () => {
         }}
       />
 
-      <AddWeightSheet visible={showAddWeight} onClose={() => setShowAddWeight(false)} onSave={handleAddWeight} />
+      <QuickAddSheet
+        visible={showQuickAdd}
+        section={quickAddSection ?? "Przekąska"}
+        onClose={() => { setShowQuickAdd(false); setQuickAddSection(null); }}
+        onConfirm={async (food) => {
+          if (!quickAddSection) return;
+          await handleAddConfirm(food, 1, quickAddSection);
+          setShowQuickAdd(false);
+          setQuickAddSection(null);
+        }}
+      />
+
+      <AddWeightSheet visible={showAddWeight} onClose={() => setShowAddWeight(false)} onSave={handleAddWeight} lastWeight={currentWeight} />
       <AddProgressPhotoSheet
         visible={showAddPhoto}
         onClose={() => setShowAddPhoto(false)}
@@ -1289,21 +1568,24 @@ const sheet = StyleSheet.create({
 });
 
 const macro = StyleSheet.create({
-  wrap: { marginBottom: 12 },
+  wrap: { marginBottom: 8 },
   row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 5 },
   label: { ...typography.label, color: colors.mutedMid },
   value: { ...typography.label, color: colors.text },
   goal: { color: colors.muted },
   track: { backgroundColor: colors.border, borderRadius: 3, height: 6, overflow: "hidden" },
   fill: { borderRadius: 3, height: "100%" },
+  dot: { width: 7, height: 7, borderRadius: 4 },
 });
 
 const diary = StyleSheet.create({
   scroll: { paddingBottom: 24, paddingHorizontal: 14 },
   dateRow: { alignItems: "center", flexDirection: "row", paddingVertical: 8 },
+  dateRowRight: { flexDirection: "row", gap: 8 },
   dateCenter: { alignItems: "center", flex: 1 },
   dateLabel: { ...typography.section, color: colors.text },
   dateSub: { ...typography.label, color: colors.muted },
+  todayPill: { ...typography.label, color: colors.accent, fontSize: 10, marginTop: 3 },
   summaryCard: { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 22, borderWidth: 1, marginBottom: 14, padding: 18 },
   cardLabel: { ...typography.label, color: colors.muted },
   kcalRow: { alignItems: "flex-end", flexDirection: "row", gap: 9, marginBottom: 10 },
@@ -1421,6 +1703,7 @@ const measure = StyleSheet.create({
   photoMeta: { padding: 10 },
   photoAngle: { ...typography.label, color: colors.text },
   photoDate: { ...typography.label, color: colors.muted, fontSize: 10, marginTop: 2 },
+  photoDelete: { alignItems: "center", height: 24, justifyContent: "center", width: 24 },
   emptyPhotos: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.border, borderRadius: 18, borderStyle: "dashed", borderWidth: 1.5, gap: 8, padding: 22 },
   emptyPhotoTitle: { ...typography.section, color: colors.text },
   emptyPhotoText: { ...typography.body, color: colors.muted, textAlign: "center" },
@@ -1495,11 +1778,14 @@ const custom = StyleSheet.create({
   inputCompact: { fontSize: 18, textAlign: "center" },
   inputFeatured: { color: colors.accent, fontSize: 34, textAlign: "center" },
   macroGrid: { flexDirection: "row", gap: 10 },
+  hint: { ...typography.label, color: colors.mutedMid, fontSize: 11, marginBottom: -8 },
 });
 
 const nav = StyleSheet.create({
-  wrap: { backgroundColor: colors.surface, borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", paddingTop: 10 },
-  item: { alignItems: "center", flex: 1, gap: 3, justifyContent: "center" },
+  wrap: { backgroundColor: colors.surface, borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", paddingTop: 8 },
+  item: { alignItems: "center", flex: 1, gap: 4, justifyContent: "center" },
+  iconWrap: { alignItems: "center", borderRadius: 14, height: 32, justifyContent: "center", width: 52 },
+  iconWrapActive: { backgroundColor: colors.accentA },
   label: { ...typography.label, color: colors.muted, fontSize: 10 },
   labelActive: { color: colors.accent },
 });

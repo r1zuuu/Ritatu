@@ -1,6 +1,7 @@
 import type { MealDraft } from "../data/types";
+import { searchUsdaProducts } from "./usdaService";
 
-const OPEN_FOOD_FACTS_BASE_URL = "https://pl.openfoodfacts.org";
+const OPEN_FOOD_FACTS_BASE_URL = "https://world.openfoodfacts.org";
 const PRODUCT_FIELDS = ["code", "product_name", "nutriments", "image_front_url"].join(",");
 const SEARCH_FIELDS = [
   "code",
@@ -12,6 +13,14 @@ const SEARCH_FIELDS = [
 ].join(",");
 const USER_AGENT = "Ritatu/1.0 (contact: ritatu-app-local)";
 
+type OffNutriments = {
+  "energy-kcal_100g"?: number;
+  "energy_100g"?: number;
+  proteins_100g?: number;
+  carbohydrates_100g?: number;
+  fat_100g?: number;
+};
+
 type OpenFoodFactsProduct = {
   code?: string;
   status?: number;
@@ -20,12 +29,7 @@ type OpenFoodFactsProduct = {
     code?: string;
     product_name?: string;
     image_front_url?: string;
-    nutriments?: {
-      "energy-kcal_100g"?: number;
-      proteins_100g?: number;
-      carbohydrates_100g?: number;
-      fat_100g?: number;
-    };
+    nutriments?: OffNutriments;
   };
 };
 
@@ -35,12 +39,7 @@ type OpenFoodFactsSearchProduct = {
   brands?: string;
   quantity?: string;
   image_front_url?: string;
-  nutriments?: {
-    "energy-kcal_100g"?: number;
-    proteins_100g?: number;
-    carbohydrates_100g?: number;
-    fat_100g?: number;
-  };
+  nutriments?: OffNutriments;
 };
 
 type OpenFoodFactsSearchResponse = {
@@ -70,23 +69,29 @@ export type OpenFoodFactsSearchItem = {
   imageUrl?: string | null;
 };
 
+const resolveKcal = (n?: OffNutriments): number | null => {
+  if (isNumber(n?.["energy-kcal_100g"])) return n!["energy-kcal_100g"]!;
+  if (isNumber(n?.["energy_100g"])) return Math.round(n!["energy_100g"]! / 4.184);
+  return null;
+};
+
 const productToSearchItem = (
   product: OpenFoodFactsSearchProduct,
 ): OpenFoodFactsSearchItem | null => {
   const name = product.product_name?.trim();
   const nutriments = product.nutriments;
-  const calories = nutriments?.["energy-kcal_100g"];
-  const protein = nutriments?.proteins_100g;
-  const carbs = nutriments?.carbohydrates_100g;
-  const fat = nutriments?.fat_100g;
+  const calories = resolveKcal(nutriments);
+  const protein = nutriments?.proteins_100g ?? null;
+  const carbs = nutriments?.carbohydrates_100g ?? null;
+  const fat = nutriments?.fat_100g ?? null;
 
   if (
     !product.code ||
     !name ||
-    !isNumber(calories) ||
-    !isNumber(protein) ||
-    !isNumber(carbs) ||
-    !isNumber(fat)
+    calories === null ||
+    protein === null ||
+    carbs === null ||
+    fat === null
   ) {
     return null;
   }
@@ -105,12 +110,7 @@ const productToSearchItem = (
   };
 };
 
-export const searchProductsByName = async (
-  query: string,
-): Promise<OpenFoodFactsSearchItem[]> => {
-  const trimmed = query.trim();
-  if (trimmed.length < 3) return [];
-
+const searchOffProducts = async (trimmed: string): Promise<OpenFoodFactsSearchItem[]> => {
   const params = new URLSearchParams({
     search_terms: trimmed,
     search_simple: "1",
@@ -121,26 +121,48 @@ export const searchProductsByName = async (
   });
 
   let response: Response;
-
   try {
     response = await fetch(`${OPEN_FOOD_FACTS_BASE_URL}/cgi/search.pl?${params.toString()}`, {
-      headers: {
-        // RN/Expo native can pass User-Agent; web targets may ignore it.
-        "User-Agent": USER_AGENT,
-      },
+      headers: { "User-Agent": USER_AGENT },
     });
   } catch {
-    throw new Error("Nie udało się połączyć z Open Food Facts.");
+    return [];
   }
 
-  if (!response.ok) {
-    throw new Error("Open Food Facts nie odpowiedziało poprawnie.");
-  }
+  if (!response.ok) return [];
 
   const data = (await response.json()) as OpenFoodFactsSearchResponse;
   return (data.products ?? [])
     .map(productToSearchItem)
     .filter((item): item is OpenFoodFactsSearchItem => Boolean(item));
+};
+
+export const searchProductsByName = async (
+  query: string,
+): Promise<OpenFoodFactsSearchItem[]> => {
+  const trimmed = query.trim();
+  if (trimmed.length < 3) return [];
+
+  const [offResults, usdaResults] = await Promise.all([
+    searchOffProducts(trimmed),
+    searchUsdaProducts(trimmed),
+  ]);
+
+  const seen = new Set<string>();
+  const merged: OpenFoodFactsSearchItem[] = [];
+
+  for (const item of [...offResults, ...usdaResults]) {
+    if (!seen.has(item.code)) {
+      seen.add(item.code);
+      merged.push(item);
+    }
+  }
+
+  if (merged.length === 0 && offResults.length === 0 && usdaResults.length === 0) {
+    throw new Error("Nie udało się pobrać wyników wyszukiwania.");
+  }
+
+  return merged;
 };
 
 export const lookupProductByBarcode = async (

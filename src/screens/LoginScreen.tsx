@@ -47,7 +47,7 @@ export const LoginScreen = () => {
             style={styles.input}
             value={login}
             onChangeText={setLogin}
-            placeholder="stas"
+            placeholder="login"
             placeholderTextColor={colors.muted}
             autoCapitalize="none"
           />
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     height: 2,
     backgroundColor: colors.accent,
     borderRadius: 1,
-    top: 14,
+    top: 18,
   },
   title: {
     color: colors.accent,
