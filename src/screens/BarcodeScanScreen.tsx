@@ -177,14 +177,6 @@ export const BarcodeScanScreen = () => {
 
   return (
     <View style={styles.wrap}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Wróć"
-        style={({ pressed }) => [styles.back, pressed && styles.pressed]}
-        onPress={() => router.back()}
-      >
-        <Icon name="chevron-left" size={22} color={colors.paper} />
-      </Pressable>
       <CameraView
         accessibilityLabel="Skaner kodow kreskowych"
         style={styles.camera}
@@ -199,9 +191,18 @@ export const BarcodeScanScreen = () => {
 
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>Skan produktu</Text>
-          <Text style={styles.title}>Ustaw kod w ramce</Text>
-          <Text style={styles.subtitle}>Po skanie sprawdze makro w Open Food Facts.</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Wróć"
+            style={({ pressed }) => [styles.back, pressed && styles.pressed]}
+            onPress={() => router.back()}
+          >
+            <Icon name="chevron-left" size={20} color={colors.paper} />
+          </Pressable>
+          <View>
+            <Text style={styles.eyebrow}>Skan produktu</Text>
+            <Text style={styles.title}>Ustaw kod w ramce</Text>
+          </View>
         </View>
 
         <View style={styles.viewfinderWrap} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -292,10 +293,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingBottom: 36,
-    paddingTop: 64,
+    paddingTop: 56,
   },
   header: {
-    gap: 8,
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 12,
   },
   eyebrow: {
     color: colors.accentHover,
@@ -419,16 +422,11 @@ const styles = StyleSheet.create({
   back: {
     alignItems: "center",
     backgroundColor: "rgba(19,19,26,0.72)",
-    borderColor: colors.borderMid,
-    borderRadius: 14,
-    borderWidth: 1,
-    height: 44,
+    borderRadius: 10,
+    height: 36,
     justifyContent: "center",
-    left: 18,
-    position: "absolute",
-    top: 52,
-    width: 44,
-    zIndex: 5,
+    marginTop: 2,
+    width: 36,
   },
   pressed: {
     opacity: 0.86,
