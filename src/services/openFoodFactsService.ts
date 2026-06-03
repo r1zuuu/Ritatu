@@ -1,7 +1,9 @@
+import { Platform } from "react-native";
 import type { MealDraft } from "../data/types";
+import { env } from "../config/env";
 import { searchUsdaProducts } from "./usdaService";
 
-const OPEN_FOOD_FACTS_BASE_URL = "https://world.openfoodfacts.org";
+const OFF_URL = "https://world.openfoodfacts.org";
 const PRODUCT_FIELDS = ["code", "product_name", "nutriments", "image_front_url"].join(",");
 const SEARCH_FIELDS = [
   "code",
@@ -11,7 +13,15 @@ const SEARCH_FIELDS = [
   "nutriments",
   "image_front_url",
 ].join(",");
-const USER_AGENT = "Ritatu/1.0 (contact: ritatu-app-local)";
+const USER_AGENT = "Ritatu/1.0 (contact: social@chmstudio.pl)";
+
+function offHeaders(): HeadersInit {
+  const h: HeadersInit = { "User-Agent": USER_AGENT };
+  if (env.offUsername && env.offPassword) {
+    h["Authorization"] = "Basic " + btoa(`${env.offUsername}:${env.offPassword}`);
+  }
+  return h;
+}
 
 type OffNutriments = {
   "energy-kcal_100g"?: number;
@@ -81,20 +91,9 @@ const productToSearchItem = (
   const name = product.product_name?.trim();
   const nutriments = product.nutriments;
   const calories = resolveKcal(nutriments);
-  const protein = nutriments?.proteins_100g ?? null;
-  const carbs = nutriments?.carbohydrates_100g ?? null;
-  const fat = nutriments?.fat_100g ?? null;
 
-  if (
-    !product.code ||
-    !name ||
-    calories === null ||
-    protein === null ||
-    carbs === null ||
-    fat === null
-  ) {
-    return null;
-  }
+  // Need at minimum: code, name, calories
+  if (!product.code || !name || calories === null) return null;
 
   const detailParts = [product.quantity, product.brands].filter(Boolean);
 
@@ -103,84 +102,83 @@ const productToSearchItem = (
     name,
     detail: detailParts.length > 0 ? detailParts.join(" · ") : "100 g",
     calories,
-    proteinPer100g: protein,
-    carbsPer100g: carbs,
-    fatPer100g: fat,
+    proteinPer100g: nutriments?.proteins_100g ?? 0,
+    carbsPer100g:   nutriments?.carbohydrates_100g ?? 0,
+    fatPer100g:     nutriments?.fat_100g ?? 0,
     imageUrl: product.image_front_url ?? null,
   };
 };
 
-const searchOffProducts = async (trimmed: string): Promise<OpenFoodFactsSearchItem[]> => {
-  const params = new URLSearchParams({
-    search_terms: trimmed,
-    search_simple: "1",
-    action: "process",
-    json: "1",
-    page_size: "20",
-    fields: SEARCH_FIELDS,
-  });
+const fetchOffSearch = async (
+  baseUrl: string,
+  trimmed: string,
+): Promise<OpenFoodFactsSearchItem[]> => {
+  const url =
+    `${baseUrl}/api/v2/search` +
+    `?search_terms=${encodeURIComponent(trimmed)}` +
+    `&page_size=20` +
+    `&fields=${SEARCH_FIELDS}`;
 
+  console.log("[OFF] GET", url);
   let response: Response;
   try {
-    response = await fetch(`${OPEN_FOOD_FACTS_BASE_URL}/cgi/search.pl?${params.toString()}`, {
-      headers: { "User-Agent": USER_AGENT },
-    });
-  } catch {
+    response = await fetch(url, { headers: offHeaders() });
+  } catch (e) {
+    console.warn("[OFF] fetch error:", e);
     return [];
   }
 
-  if (!response.ok) return [];
+  console.log("[OFF]", baseUrl.includes("pl.") ? "PL" : "WORLD", "status:", response.status);
+  if (!response.ok) {
+    console.warn("[OFF] not ok body:", await response.text().catch(() => ""));
+    return [];
+  }
 
   const data = (await response.json()) as OpenFoodFactsSearchResponse;
-  return (data.products ?? [])
+  const raw = data.products ?? [];
+  const mapped = raw
     .map(productToSearchItem)
     .filter((item): item is OpenFoodFactsSearchItem => Boolean(item));
+  console.log(`[OFF] raw=${raw.length} mapped=${mapped.length}`);
+  return mapped;
 };
 
 export const searchProductsByName = async (
   query: string,
 ): Promise<OpenFoodFactsSearchItem[]> => {
   const trimmed = query.trim();
-  if (trimmed.length < 3) return [];
+  if (trimmed.length < 2) return [];
 
-  const [offResults, usdaResults] = await Promise.all([
-    searchOffProducts(trimmed),
-    searchUsdaProducts(trimmed),
+  // OFF subdomains don't send CORS headers — browser blocks them; skip on web entirely
+  const isWeb = Platform.OS === "web";
+  const [plResults, worldResults, usdaResults] = await Promise.all([
+    !isWeb ? fetchOffSearch("https://pl.openfoodfacts.org", trimmed) : Promise.resolve([] as OpenFoodFactsSearchItem[]),
+    !isWeb ? fetchOffSearch(OFF_URL, trimmed) : Promise.resolve([] as OpenFoodFactsSearchItem[]),
+    searchUsdaProducts(trimmed).catch(() => [] as OpenFoodFactsSearchItem[]),
   ]);
+
+  console.log(`[OFF] pl=${plResults.length} world=${worldResults.length} usda=${usdaResults.length}`);
 
   const seen = new Set<string>();
   const merged: OpenFoodFactsSearchItem[] = [];
-
-  for (const item of [...offResults, ...usdaResults]) {
+  for (const item of [...plResults, ...worldResults, ...usdaResults]) {
     if (!seen.has(item.code)) {
       seen.add(item.code);
       merged.push(item);
     }
   }
-
-  if (merged.length === 0 && offResults.length === 0 && usdaResults.length === 0) {
-    throw new Error("Nie udało się pobrać wyników wyszukiwania.");
-  }
-
   return merged;
 };
 
 export const lookupProductByBarcode = async (
   barcode: string,
 ): Promise<ProductLookupResult> => {
-  const url = `${OPEN_FOOD_FACTS_BASE_URL}/api/v2/product/${encodeURIComponent(
-    barcode,
-  )}.json?fields=${encodeURIComponent(PRODUCT_FIELDS)}`;
+  const url = `${OFF_URL}/api/v2/product/${encodeURIComponent(barcode)}.json?fields=${PRODUCT_FIELDS}`;
 
   let response: Response;
 
   try {
-    response = await fetch(url, {
-      headers: {
-        // Browsers can block User-Agent, but native Expo targets can pass it through.
-        "User-Agent": USER_AGENT,
-      },
-    });
+    response = await fetch(url, { headers: offHeaders() });
   } catch {
     return {
       ok: false,

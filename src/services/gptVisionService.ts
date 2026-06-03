@@ -66,6 +66,7 @@ const parseVisionResult = (payload: unknown): VisionMealResult => {
 const analyzeMealPhotoViaApi = async (
   base64: string,
   mimeType = "image/jpeg",
+  mealTitle?: string,
 ): Promise<VisionMealResult> => {
   const response = await fetch(endpoint("/analyze-meal-photo"), {
     method: "POST",
@@ -75,6 +76,7 @@ const analyzeMealPhotoViaApi = async (
     body: JSON.stringify({
       imageBase64: base64,
       mimeType,
+      mealTitle,
     }),
   });
 
@@ -97,9 +99,17 @@ const analyzeMealPhotoViaApi = async (
   return result as VisionMealResult;
 };
 
+const buildUserText = (mealTitle?: string) => {
+  const titleHint = mealTitle?.trim()
+    ? `Uzytkownik twierdzi ze to: "${mealTitle.trim()}". `
+    : "";
+  return `${titleHint}Rozpoznaj posilek na zdjeciu i oszacuj makro na 100g oraz gramature. Przy szacowaniu gramów: dokladnie przeanalizuj rozmiar talerza lub naczynia wzgledem ilosci jedzenia, uwzglednij glebie i objetosc porcji, nie zaniżaj.`;
+};
+
 const analyzeMealPhotoViaOpenAi = async (
   base64: string,
   mimeType = "image/jpeg",
+  mealTitle?: string,
 ): Promise<VisionMealResult> => {
   const response = await fetch(OPENAI_ENDPOINT, {
     method: "POST",
@@ -115,14 +125,14 @@ const analyzeMealPhotoViaOpenAi = async (
         {
           role: "system",
           content:
-            "Jestes dietetykiem. Odpowiedz tylko JSON-em. Pola: dish_name (string), estimated_weight_g (number), protein_per_100g (number), carbs_per_100g (number), fat_per_100g (number), confidence (low|medium|high), note (string|null).",
+            "Jestes dietetykiem i ekspertem od porcji. Odpowiedz tylko JSON-em. Pola: dish_name (string), estimated_weight_g (number — szacuj gramatury bardzo ostroznie: analizuj rozmiar talerza/naczynia i ilosc jedzenia, nie zanizaj), protein_per_100g (number), carbs_per_100g (number), fat_per_100g (number), confidence (low|medium|high), note (string|null).",
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "Rozpoznaj posilek na zdjeciu i oszacuj makro na 100g oraz gramature.",
+              text: buildUserText(mealTitle),
             },
             {
               type: "image_url",
@@ -161,16 +171,81 @@ const analyzeMealPhotoViaOpenAi = async (
 export const analyzeMealPhoto = async (
   base64: string,
   mimeType = "image/jpeg",
+  mealTitle?: string,
 ): Promise<VisionMealResult> => {
   if (isApiConfigured) {
-    return analyzeMealPhotoViaApi(base64, mimeType);
+    return analyzeMealPhotoViaApi(base64, mimeType, mealTitle);
   }
 
   if (isOpenAiConfigured) {
-    return analyzeMealPhotoViaOpenAi(base64, mimeType);
+    return analyzeMealPhotoViaOpenAi(base64, mimeType, mealTitle);
   }
 
   throw new Error(
     "Brakuje EXPO_PUBLIC_API_BASE_URL lub EXPO_PUBLIC_OPENAI_API_KEY. Dodaj klucz OpenAI do configu aplikacji.",
   );
+};
+
+export const refineMealAnalysis = async (
+  base64: string,
+  mimeType: string,
+  previous: VisionMealResult,
+  userContext: string,
+): Promise<VisionMealResult> => {
+  if (!isApiConfigured && !isOpenAiConfigured) {
+    throw new Error(
+      "Brakuje EXPO_PUBLIC_API_BASE_URL lub EXPO_PUBLIC_OPENAI_API_KEY.",
+    );
+  }
+
+  const refineText = `Poprzednia analiza:
+- Danie: ${previous.dish_name}
+- Gramatura: ${previous.estimated_weight_g}g
+- Białko/100g: ${previous.protein_per_100g}g, Węglowodany/100g: ${previous.carbs_per_100g}g, Tłuszcze/100g: ${previous.fat_per_100g}g
+
+Komentarz użytkownika: "${userContext.trim()}"
+
+Popraw analizę biorąc pod uwagę komentarz i zdjęcie. Zwróć poprawiony JSON.`;
+
+  const makeRequest = async () => {
+    const response = await fetch(OPENAI_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.openaiApiKey}`,
+      },
+      body: JSON.stringify({
+        model: env.openaiVisionModel || DEFAULT_OPENAI_MODEL,
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "Jestes dietetykiem. Poprzednia analiza zostala zakwestionowana. Popraw ja na podstawie komentarza uzytkownika i zdjecia. Odpowiedz tylko JSON-em z polami: dish_name, estimated_weight_g, protein_per_100g, carbs_per_100g, fat_per_100g, confidence, note.",
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: refineText },
+              {
+                type: "image_url",
+                image_url: { url: `data:${mimeType};base64,${base64}` },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const payload = (await response.json().catch(() => null)) as OpenAiResponse | null;
+    if (!response.ok) {
+      throw new Error(payload?.error?.message ?? "Nie udało się poprawić analizy.");
+    }
+    const content = payload?.choices?.[0]?.message?.content;
+    if (!content) throw new Error("OpenAI nie zwróciło odpowiedzi.");
+    return parseVisionResult(JSON.parse(content));
+  };
+
+  return makeRequest();
 };
