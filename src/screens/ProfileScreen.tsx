@@ -1,9 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { Button } from "../components/Button";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "../components/Icon";
+import type { IconName } from "../components/Icon";
 import { Screen } from "../components/Screen";
 import {
   CUSTOM_PRODUCTS_KEY,
@@ -22,6 +31,7 @@ import { typography } from "../theme/typography";
 export const ProfileScreen = () => {
   const { user } = useAuth();
   const { profile, saveProfile } = useUserProfile();
+  const insets = useSafeAreaInsets();
   const [settings, setSettings] = useState<DeveloperSettings | null>(null);
   const [exportJson, setExportJson] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -31,9 +41,7 @@ export const ProfileScreen = () => {
   const [carbs, setCarbs] = useState("");
   const [fat, setFat] = useState("");
 
-  useEffect(() => {
-    void getDeveloperSettings().then(setSettings);
-  }, []);
+  useEffect(() => { void getDeveloperSettings().then(setSettings); }, []);
 
   useEffect(() => {
     if (!profile) return;
@@ -58,7 +66,7 @@ export const ProfileScreen = () => {
         goalCarbsG: parseGoal(carbs) ?? profile.goalCarbsG,
         goalFatG: parseGoal(fat) ?? profile.goalFatG,
       });
-      setMessage("Cele zapisane.");
+      setMessage("Zapisano.");
       setTimeout(() => setMessage(null), 2500);
     } catch (e) {
       setMessage(`Błąd: ${e instanceof Error ? e.message : String(e)}`);
@@ -76,10 +84,10 @@ export const ProfileScreen = () => {
           style: "destructive",
           onPress: async () => {
             const keys = await AsyncStorage.getAllKeys();
-            const mealKeys = keys.filter((key) => key.startsWith("ritatu:meals:"));
+            const mealKeys = keys.filter((k) => k.startsWith("ritatu:meals:"));
             await AsyncStorage.multiRemove([...mealKeys, WEIGHTS_KEY, CUSTOM_PRODUCTS_KEY]);
             await clearProgressPhotos();
-            setMessage("Wyczyszczono dane.");
+            setMessage("Wyczyszczono.");
           },
         },
       ],
@@ -97,100 +105,243 @@ export const ProfileScreen = () => {
     try {
       await seedDemoData(user.uid, profile);
       setSettings(await getDeveloperSettings());
-      setMessage("Dodano dane demo. Wróć na Home, aby je zobaczyć.");
+      setMessage("Demo dodane.");
     } catch (e) {
-      setMessage(`Błąd seed: ${e instanceof Error ? e.message : String(e)}`);
+      setMessage(`Błąd: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
   return (
     <Screen padded={false}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.goalsCard}>
-          <View style={styles.cardHeader}>
-            <Icon name="gauge" size={20} color={colors.accent} />
-            <Text style={styles.cardTitle}>Cele dzienne</Text>
-          </View>
-          <View style={styles.goalRow}>
-            <GoalField label="Kalorie" unit="kcal" value={kcal} onChangeText={setKcal} />
-            <GoalField label="Białko" unit="g" value={protein} onChangeText={setProtein} />
-          </View>
-          <View style={styles.goalRow}>
-            <GoalField label="Węglowodany" unit="g" value={carbs} onChangeText={setCarbs} />
-            <GoalField label="Tłuszcze" unit="g" value={fat} onChangeText={setFat} />
-          </View>
-          <Button title="Zapisz cele" icon="check" onPress={() => void saveGoals()} />
+      <ScrollView
+        contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 100 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Goals */}
+        <Text style={s.sectionLabel}>CELE DZIENNE</Text>
+        <View style={s.goalGrid}>
+          <GoalTile label="Kalorie" unit="kcal" value={kcal} onChangeText={setKcal} color={colors.accent} />
+          <GoalTile label="Białko" unit="g" value={protein} onChangeText={setProtein} color={colors.protein} />
+          <GoalTile label="Węglowodany" unit="g" value={carbs} onChangeText={setCarbs} color={colors.carbs} />
+          <GoalTile label="Tłuszcze" unit="g" value={fat} onChangeText={setFat} color={colors.fat} />
         </View>
 
-        <View style={styles.devCard}>
-          <View style={styles.cardHeader}>
-            <Icon name="settings" size={20} color={colors.accent} />
-            <Text style={styles.cardTitle}>Opcje developerskie</Text>
-          </View>
-          <Text style={styles.devText}>Lokalne narzędzia do testowania tej prywatnej wersji aplikacji.</Text>
+        <Pressable
+          style={({ pressed }) => [s.saveBtn, pressed && s.saveBtnPressed]}
+          onPress={() => void saveGoals()}
+        >
+          <Icon name="check" size={18} color={colors.warmBlack} />
+          <Text style={s.saveBtnText}>
+            {message === "Zapisano." ? "Zapisano" : "Zapisz cele"}
+          </Text>
+        </Pressable>
 
-          <View style={styles.actions}>
-            <Button title="Seed demo" icon="sparkles" variant="secondary" onPress={() => void seed()} />
-            <Button title="Reset onboardingu" icon="reset" variant="secondary" onPress={() => void resetOnboarding()} />
-            <Button title="Wyczyść dane lokalne" icon="trash" variant="secondary" onPress={clearMealsAndLocalData} />
-            <Button
-              title="Eksport JSON"
-              icon="upload"
-              variant="secondary"
-              onPress={async () => setExportJson(await exportLocalData())}
-            />
-          </View>
-
-          {message ? <Text style={styles.message}>{message}</Text> : null}
-          {settings?.seededDemoDataAt ? (
-            <Text style={styles.devText}>Ostatni seed: {settings.seededDemoDataAt.toLocaleString("pl-PL")}</Text>
-          ) : null}
-          {exportJson ? (
-            <TextInput style={styles.exportBox} value={exportJson} multiline editable={false} />
-          ) : null}
+        {/* Dev tools */}
+        <Text style={[s.sectionLabel, { marginTop: 28 }]}>NARZĘDZIA</Text>
+        <View style={s.toolList}>
+          <ToolRow icon="sparkles" label="Seed danych demo" onPress={() => void seed()} first />
+          <ToolRow icon="reset" label="Reset onboardingu" onPress={() => void resetOnboarding()} />
+          <ToolRow
+            icon="upload"
+            label="Eksportuj dane JSON"
+            onPress={async () => setExportJson(await exportLocalData())}
+          />
+          <ToolRow
+            icon="trash"
+            label="Wyczyść dane lokalne"
+            onPress={clearMealsAndLocalData}
+            danger
+          />
         </View>
+
+        {message && message !== "Zapisano." ? (
+          <Text style={s.message}>{message}</Text>
+        ) : null}
+
+        {settings?.seededDemoDataAt ? (
+          <Text style={s.meta}>
+            Ostatni seed: {settings.seededDemoDataAt.toLocaleString("pl-PL")}
+          </Text>
+        ) : null}
+
+        {exportJson ? (
+          <TextInput
+            style={s.exportBox}
+            value={exportJson}
+            multiline
+            editable={false}
+          />
+        ) : null}
       </ScrollView>
     </Screen>
   );
 };
 
-function GoalField({ label, unit, value, onChangeText }: {
-  label: string;
-  unit: string;
-  value: string;
-  onChangeText: (v: string) => void;
+function GoalTile({
+  label, unit, value, onChangeText, color,
+}: {
+  label: string; unit: string; value: string;
+  onChangeText: (v: string) => void; color: string;
 }) {
   return (
-    <View style={styles.goalField}>
-      <Text style={styles.goalLabel}>{label}</Text>
-      <View style={styles.goalInputRow}>
+    <View style={s.tile}>
+      <View style={[s.tileBar, { backgroundColor: color }]} />
+      <Text style={s.tileLabel}>{label}</Text>
+      <View style={s.tileInputRow}>
         <TextInput
-          style={styles.goalInput}
+          style={s.tileInput}
           value={value}
           onChangeText={onChangeText}
           keyboardType="number-pad"
           selectTextOnFocus
+          placeholderTextColor={colors.muted}
         />
-        <Text style={styles.goalUnit}>{unit}</Text>
+        <Text style={[s.tileUnit, { color }]}>{unit}</Text>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  scroll: { gap: 16, padding: 20, paddingBottom: 32, paddingTop: 36 },
-  goalsCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 22, borderWidth: 1, gap: 14, padding: 16 },
-  devCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 22, borderWidth: 1, gap: 14, padding: 16 },
-  cardHeader: { alignItems: "center", flexDirection: "row", gap: 8 },
-  cardTitle: { ...typography.section, color: colors.text },
-  goalRow: { flexDirection: "row", gap: 10 },
-  goalField: { flex: 1, gap: 6 },
-  goalLabel: { ...typography.label, color: colors.muted },
-  goalInputRow: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", paddingHorizontal: 12, height: 48 },
-  goalInput: { flex: 1, ...typography.section, color: colors.text },
-  goalUnit: { ...typography.label, color: colors.mutedMid },
-  devText: { ...typography.body, color: colors.muted },
-  actions: { gap: 10 },
-  message: { ...typography.label, color: colors.green },
-  exportBox: { ...typography.label, backgroundColor: colors.card, borderColor: colors.border, borderRadius: 14, borderWidth: 1, color: colors.mutedMid, maxHeight: 220, minHeight: 140, padding: 12, textAlignVertical: "top" },
+function ToolRow({
+  icon, label, onPress, danger = false, first = false,
+}: {
+  icon: IconName; label: string; onPress: () => void; danger?: boolean; first?: boolean;
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [s.toolRow, first && s.toolRowFirst, pressed && s.toolRowPressed]}
+      onPress={onPress}
+    >
+      <View style={[s.toolIconWrap, danger && s.toolIconDanger]}>
+        <Icon name={icon} size={18} color={danger ? colors.danger : colors.text} />
+      </View>
+      <Text style={[s.toolLabel, danger && s.toolLabelDanger]}>{label}</Text>
+      <Icon name="chevron-right" size={16} color={colors.muted} />
+    </Pressable>
+  );
+}
+
+const s = StyleSheet.create({
+  scroll: { paddingHorizontal: 20, paddingTop: 32 },
+
+  /* Section label */
+  sectionLabel: {
+    ...typography.stat,
+    color: colors.muted,
+    marginBottom: 10,
+  },
+
+  /* Goal tiles */
+  goalGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 12,
+  },
+  tile: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 10,
+    overflow: "hidden",
+    padding: 14,
+    width: "47.5%",
+  },
+  tileBar: {
+    borderRadius: 2,
+    height: 3,
+    width: 28,
+  },
+  tileLabel: {
+    ...typography.label,
+    color: colors.muted,
+    fontSize: 11,
+  },
+  tileInputRow: {
+    alignItems: "flex-end",
+    flexDirection: "row",
+    gap: 4,
+  },
+  tileInput: {
+    color: colors.text,
+    flex: 1,
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 26,
+    letterSpacing: -0.5,
+    paddingVertical: 0,
+  },
+  tileUnit: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+    marginBottom: 3,
+  },
+
+  /* Save button */
+  saveBtn: {
+    alignItems: "center",
+    backgroundColor: colors.accent,
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 8,
+    height: 50,
+    justifyContent: "center",
+    marginBottom: 28,
+  },
+  saveBtnPressed: { opacity: 0.82, transform: [{ scale: 0.98 }] },
+  saveBtnText: {
+    color: colors.warmBlack,
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
+  },
+
+  /* Tool list */
+  toolList: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  toolRow: {
+    alignItems: "center",
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  toolRowFirst: { borderTopWidth: 0 },
+  toolRowPressed: { backgroundColor: colors.cardHov },
+  toolIconWrap: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderColor: colors.borderMid,
+    borderRadius: 10,
+    borderWidth: 1,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  toolIconDanger: { borderColor: "rgba(255,79,107,0.28)" },
+  toolLabel: { ...typography.body, color: colors.text, flex: 1, fontSize: 14 },
+  toolLabelDanger: { color: colors.danger },
+
+  /* Misc */
+  message: { ...typography.label, color: colors.green, marginTop: 12, textAlign: "center" },
+  meta: { ...typography.label, color: colors.muted, marginTop: 10 },
+  exportBox: {
+    ...typography.label,
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    color: colors.mutedMid,
+    marginTop: 12,
+    maxHeight: 220,
+    minHeight: 140,
+    padding: 12,
+    textAlignVertical: "top",
+  },
 });
