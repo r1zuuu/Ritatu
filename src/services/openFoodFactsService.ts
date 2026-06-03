@@ -114,33 +114,27 @@ const fetchOffSearch = async (
   trimmed: string,
 ): Promise<OpenFoodFactsSearchItem[]> => {
   const url =
-    `${baseUrl}/api/v2/search` +
+    `${baseUrl}/cgi/search.pl` +
     `?search_terms=${encodeURIComponent(trimmed)}` +
+    `&search_simple=1` +
+    `&action=process` +
+    `&json=1` +
     `&page_size=20` +
     `&fields=${SEARCH_FIELDS}`;
 
-  console.log("[OFF] GET", url);
   let response: Response;
   try {
     response = await fetch(url, { headers: offHeaders() });
-  } catch (e) {
-    console.warn("[OFF] fetch error:", e);
+  } catch {
     return [];
   }
 
-  console.log("[OFF]", baseUrl.includes("pl.") ? "PL" : "WORLD", "status:", response.status);
-  if (!response.ok) {
-    console.warn("[OFF] not ok body:", await response.text().catch(() => ""));
-    return [];
-  }
+  if (!response.ok) return [];
 
   const data = (await response.json()) as OpenFoodFactsSearchResponse;
-  const raw = data.products ?? [];
-  const mapped = raw
+  return (data.products ?? [])
     .map(productToSearchItem)
     .filter((item): item is OpenFoodFactsSearchItem => Boolean(item));
-  console.log(`[OFF] raw=${raw.length} mapped=${mapped.length}`);
-  return mapped;
 };
 
 export const searchProductsByName = async (
@@ -156,8 +150,6 @@ export const searchProductsByName = async (
     !isWeb ? fetchOffSearch(OFF_URL, trimmed) : Promise.resolve([] as OpenFoodFactsSearchItem[]),
     searchUsdaProducts(trimmed).catch(() => [] as OpenFoodFactsSearchItem[]),
   ]);
-
-  console.log(`[OFF] pl=${plResults.length} world=${worldResults.length} usda=${usdaResults.length}`);
 
   const seen = new Set<string>();
   const merged: OpenFoodFactsSearchItem[] = [];
