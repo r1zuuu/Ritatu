@@ -1,8 +1,10 @@
 export const fontFamilies = {
-  regular: "RedditSans_400Regular",
-  medium: "RedditSans_500Medium",
-  semibold: "RedditSans_600SemiBold",
-  bold: "RedditSans_700Bold",
+  regular:  "Inter_400Regular",
+  medium:   "Inter_500Medium",
+  semibold: "Inter_600SemiBold",
+  bold:     "Inter_700Bold",
+  // Barlow Light — uppercase precision labels only (eyebrows, day initials)
+  barlow:   "Barlow_300Light",
 };
 
 export const typography = {
@@ -35,5 +37,18 @@ export const typography = {
     fontFamily: fontFamilies.semibold,
     fontSize: 15,
     lineHeight: 20,
+  },
+  // Barlow — ONLY for very short uppercase decorators: eyebrows, day initials
+  stat: {
+    fontFamily: fontFamilies.barlow,
+    fontSize: 10,
+    letterSpacing: 1.4,
+    textTransform: "uppercase" as const,
+  },
+  statMd: {
+    fontFamily: fontFamilies.barlow,
+    fontSize: 12,
+    letterSpacing: 1.2,
+    textTransform: "uppercase" as const,
   },
 };

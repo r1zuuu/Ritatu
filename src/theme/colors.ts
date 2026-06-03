@@ -1,26 +1,36 @@
 export const colors = {
-  background: "#0A0A0E",
-  surface:    "#13131A",
-  card:       "#1C1C28",
-  cardHov:    "#232334",
-  border:     "rgba(255,255,255,0.07)",
-  borderMid:  "rgba(255,255,255,0.12)",
-  text:       "#EEEEF3",
-  muted:      "#6A6A80",
-  mutedMid:   "#A2A2BA",
-  accent:     "#FF6524",
-  accentHover:"#FF7A43",
-  accentA:    "rgba(255,101,36,0.14)",
-  accentB:    "rgba(255,101,36,0.30)",
-  protein:    "#FF6524",
-  carbs:      "#F7A929",
-  fat:        "#8A7EFA",
-  green:      "#38C97C",
-  danger:     "#FF4F6B",
-  // legacy aliases still referenced elsewhere
-  surfaceAlt: "#232334",
-  paper:      "#F5F0E8",
-  warmBlack:  "#0A0A0E",
-  darkCard:   "#1C1C28",
-  kcal:       "#FF6524",
+  // Warm dark — brown undertone, not cold blue-black
+  background: "#111009",
+  surface:    "#181410",
+  card:       "#1E1A12",
+  cardHov:    "#252018",
+  surfaceAlt: "#252018",
+
+  // Warm-tinted borders
+  border:    "rgba(250,240,215,0.07)",
+  borderMid: "rgba(250,240,215,0.13)",
+
+  // Warm white text
+  text:     "#EDE8DE",
+  muted:    "#6C6660",
+  mutedMid: "#9C9690",
+
+  // Orange — precise and restrained
+  accent:      "#FF6524",
+  accentHover: "#FF7A43",
+  accentA:     "rgba(255,101,36,0.10)",
+  accentB:     "rgba(255,101,36,0.22)",
+
+  // Macro colors — protein is NOT orange
+  protein: "#5BB8F5",   // calm blue (Apple Health)
+  carbs:   "#E8B840",   // warm amber
+  fat:     "#B89CF0",   // soft violet
+  green:   "#3BC97A",   // clean green
+  danger:  "#FF4F6B",
+
+  // Aliases
+  paper:     "#F0EAE0",
+  warmBlack: "#111009",
+  darkCard:  "#1E1A12",
+  kcal:      "#FF6524",
 };
