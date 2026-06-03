@@ -15,6 +15,7 @@ export type IconName =
   | "alert"
   | "clipboard"
   | "dumbbell"
+  | "flame"
   | "gauge"
   | "image"
   | "info"
@@ -53,6 +54,7 @@ const symbols: Record<IconName, string> = {
   alert: "warning",
   clipboard: "assignment",
   dumbbell: "fitness_center",
+  flame: "local_fire_department",
   gauge: "speed",
   image: "image",
   info: "info",
@@ -83,7 +85,7 @@ export const Icon = ({ name, size = 20, color = colors.text }: IconProps) => (
 
 const styles = StyleSheet.create({
   icon: {
-    fontFamily: "MaterialSymbols_400Regular",
+    fontFamily: "MaterialSymbols_200ExtraLight",
     includeFontPadding: false,
     textAlign: "center",
     textAlignVertical: "center",
