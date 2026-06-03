@@ -1,0 +1,48 @@
+import type { FoodItem } from "./types";
+
+export const FOOD_DB: FoodItem[] = [
+  // Mięso i ryby
+  { id: 10, name: "Kurczak, pierś", detail: "100 g", calories: 165, protein: 31, carbs: 0, fat: 3.6, per100: true },
+  { id: 16, name: "Łosoś, filet", detail: "100 g", calories: 208, protein: 20.4, carbs: 0, fat: 13.6, per100: true },
+  { id: 20, name: "Wołowina, mielona", detail: "100 g", calories: 215, protein: 20.7, carbs: 0, fat: 14.2, per100: true },
+  { id: 21, name: "Tuńczyk w wodzie", detail: "100 g", calories: 108, protein: 23.6, carbs: 0, fat: 1, per100: true },
+  // Nabiał
+  { id: 14, name: "Twaróg chudy", detail: "100 g", calories: 98, protein: 17.4, carbs: 3.1, fat: 1, per100: true },
+  { id: 17, name: "Jogurt naturalny", detail: "100 g", calories: 61, protein: 3.5, carbs: 4.7, fat: 3.3, per100: true },
+  { id: 13, name: "Jajko kurze", detail: "1 szt (60 g)", calories: 86, protein: 7.5, carbs: 0.6, fat: 5.8, per100: false, portionWeightG: 60 },
+  { id: 22, name: "Ser żółty", detail: "100 g", calories: 352, protein: 25.4, carbs: 1.3, fat: 27.8, per100: true },
+  { id: 23, name: "Mleko 2%", detail: "100 ml", calories: 50, protein: 3.4, carbs: 4.8, fat: 2, per100: true },
+  // Węglowodany
+  { id: 11, name: "Ryż biały, gotowany", detail: "100 g", calories: 130, protein: 2.7, carbs: 28, fat: 0.3, per100: true },
+  { id: 15, name: "Ziemniaki, gotowane", detail: "100 g", calories: 87, protein: 1.9, carbs: 20, fat: 0.1, per100: true },
+  { id: 18, name: "Chleb żytni", detail: "1 kromka (40 g)", calories: 88, protein: 3.1, carbs: 17.2, fat: 0.8, per100: false, portionWeightG: 40 },
+  { id: 24, name: "Makaron, gotowany", detail: "100 g", calories: 131, protein: 5, carbs: 25, fat: 1.1, per100: true },
+  { id: 25, name: "Płatki owsiane", detail: "100 g", calories: 379, protein: 13.2, carbs: 67.7, fat: 7, per100: true },
+  { id: 26, name: "Chleb pszenny", detail: "1 kromka (35 g)", calories: 83, protein: 2.7, carbs: 15.8, fat: 0.9, per100: false, portionWeightG: 35 },
+  // Warzywa
+  { id: 12, name: "Brokuł", detail: "100 g", calories: 34, protein: 2.8, carbs: 6.6, fat: 0.4, per100: true },
+  { id: 27, name: "Marchewka", detail: "100 g", calories: 41, protein: 0.9, carbs: 9.6, fat: 0.2, per100: true },
+  { id: 28, name: "Pomidor", detail: "100 g", calories: 18, protein: 0.9, carbs: 3.9, fat: 0.2, per100: true },
+  { id: 29, name: "Ogórek", detail: "100 g", calories: 15, protein: 0.6, carbs: 3.6, fat: 0.1, per100: true },
+  { id: 30, name: "Papryka czerwona", detail: "100 g", calories: 31, protein: 1, carbs: 6, fat: 0.3, per100: true },
+  { id: 31, name: "Szpinak", detail: "100 g", calories: 23, protein: 2.9, carbs: 3.6, fat: 0.4, per100: true },
+  { id: 32, name: "Cebula", detail: "100 g", calories: 40, protein: 1.1, carbs: 9.3, fat: 0.1, per100: true },
+  { id: 33, name: "Czosnek", detail: "1 ząbek (5 g)", calories: 7, protein: 0.3, carbs: 1.5, fat: 0, per100: false, portionWeightG: 5 },
+  { id: 34, name: "Awokado", detail: "100 g", calories: 160, protein: 2, carbs: 8.5, fat: 14.7, per100: true },
+  // Owoce
+  { id: 35, name: "Banan", detail: "100 g", calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3, per100: true },
+  { id: 36, name: "Jabłko", detail: "100 g", calories: 52, protein: 0.3, carbs: 13.8, fat: 0.2, per100: true },
+  { id: 37, name: "Pomarańcza", detail: "100 g", calories: 47, protein: 0.9, carbs: 11.8, fat: 0.1, per100: true },
+  { id: 38, name: "Truskawki", detail: "100 g", calories: 32, protein: 0.7, carbs: 7.7, fat: 0.3, per100: true },
+  { id: 39, name: "Winogrona", detail: "100 g", calories: 69, protein: 0.7, carbs: 18.1, fat: 0.2, per100: true },
+  { id: 40, name: "Gruszka", detail: "100 g", calories: 57, protein: 0.4, carbs: 15.2, fat: 0.1, per100: true },
+  { id: 41, name: "Kiwi", detail: "100 g", calories: 61, protein: 1.1, carbs: 14.7, fat: 0.5, per100: true },
+  { id: 42, name: "Borówki", detail: "100 g", calories: 57, protein: 0.7, carbs: 14.5, fat: 0.3, per100: true },
+  { id: 43, name: "Mango", detail: "100 g", calories: 60, protein: 0.8, carbs: 15, fat: 0.4, per100: true },
+  { id: 44, name: "Ananas", detail: "100 g", calories: 50, protein: 0.5, carbs: 13.1, fat: 0.1, per100: true },
+  // Tłuszcze i przekąski
+  { id: 19, name: "Migdały", detail: "100 g", calories: 579, protein: 21.2, carbs: 21.7, fat: 49.9, per100: true },
+  { id: 45, name: "Oliwa z oliwek", detail: "1 łyżka (10 g)", calories: 88, protein: 0, carbs: 0, fat: 10, per100: false, portionWeightG: 10 },
+  { id: 46, name: "Masło orzechowe", detail: "100 g", calories: 588, protein: 25, carbs: 20, fat: 50, per100: true },
+  { id: 47, name: "Orzechy włoskie", detail: "100 g", calories: 654, protein: 15.2, carbs: 13.7, fat: 65.2, per100: true },
+];
