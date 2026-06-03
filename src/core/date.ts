@@ -1,3 +1,9 @@
+export const dateWithOffset = (offset: number): Date => {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d;
+};
+
 export const toDateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
