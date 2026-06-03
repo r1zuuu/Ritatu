@@ -2,11 +2,11 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
 import {
-  SpaceGrotesk_400Regular,
-  SpaceGrotesk_500Medium,
-  SpaceGrotesk_600SemiBold,
-  SpaceGrotesk_700Bold,
-} from "@expo-google-fonts/space-grotesk";
+  RedditSans_400Regular,
+  RedditSans_500Medium,
+  RedditSans_600SemiBold,
+  RedditSans_700Bold,
+} from "@expo-google-fonts/reddit-sans";
 import { MaterialSymbols_400Regular } from "@expo-google-fonts/material-symbols";
 import { AuthProvider } from "../src/providers/AuthProvider";
 import { MealsProvider } from "../src/providers/MealsProvider";
@@ -15,10 +15,10 @@ import { View } from "react-native";
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    SpaceGrotesk_400Regular,
-    SpaceGrotesk_500Medium,
-    SpaceGrotesk_600SemiBold,
-    SpaceGrotesk_700Bold,
+    RedditSans_400Regular,
+    RedditSans_500Medium,
+    RedditSans_600SemiBold,
+    RedditSans_700Bold,
     MaterialSymbols_400Regular,
   });
 

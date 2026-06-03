@@ -9,7 +9,21 @@
       "Bash(python:*)",
       "Bash(mkdir -p /c/Users/stani.CHM-DESKTOP/Desktop/Ritatu/graphify-out)",
       "Bash(read f:*)",
-      "WebFetch(domain:api.anthropic.com)"
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(git filter-repo *)",
+      "Bash(git filter-branch *)",
+      "Bash(git stash *)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --index-filter \"git rm --cached --ignore-unmatch .env\" --prune-empty --tag-name-filter cat -- --all)",
+      "Bash(git update-ref *)",
+      "Bash(git reflog *)",
+      "Bash(git gc *)",
+      "Bash(git push *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(p.dependencies['expo-updates'] ?? 'not installed'\\)\")",
+      "Bash(npx expo *)",
+      "Bash(npx tsc *rzy)",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const f = require\\('@expo-google-fonts/reddit-sans'\\); console.log\\(Object.keys\\(f\\).filter\\(k => k.includes\\('Reddit'\\)\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(npx eas-cli *)"
     ]
   }
 }

@@ -58,8 +58,8 @@ type HomeTab = "diary" | "measurements" | "history";
 
 const SECTION_COLORS: Record<Section, string> = {
   Śniadanie: colors.carbs,
-  Obiad: colors.accent,
-  Kolacja: colors.fat,
+  Obiad: colors.fat,
+  Kolacja: "#7B8EFA",
   Przekąska: colors.green,
 };
 

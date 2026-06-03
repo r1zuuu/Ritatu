@@ -9,7 +9,7 @@ module.exports = {
     userInterfaceStyle: "dark",
     plugins: ["expo-router", "expo-font", "expo-updates"],
     updates: {
-      url: "https://u.expo.dev/ritatu",
+      url: "https://u.expo.dev/17100aa9-d04f-433e-9ff8-e1f2d85ec48e",
       checkAutomatically: "ON_LOAD",
       fallbackToCacheTimeout: 0,
     },
@@ -37,6 +37,9 @@ module.exports = {
       apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL,
       openaiApiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY,
       openaiVisionModel: process.env.EXPO_PUBLIC_OPENAI_VISION_MODEL,
+      eas: {
+        projectId: "17100aa9-d04f-433e-9ff8-e1f2d85ec48e",
+      },
     },
   },
 };
