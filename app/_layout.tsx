@@ -31,7 +31,13 @@ export default function RootLayout() {
       <UserProfileProvider>
         <MealsProvider>
           <StatusBar style="light" />
-          <Stack screenOptions={{ headerShown: false }} />
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index"   options={{ animation: "none" }} />
+            <Stack.Screen name="home"    options={{ animation: "none" }} />
+            <Stack.Screen name="weekly"  options={{ animation: "none" }} />
+            <Stack.Screen name="profile" options={{ animation: "none" }} />
+            <Stack.Screen name="history" options={{ animation: "none" }} />
+          </Stack>
         </MealsProvider>
       </UserProfileProvider>
     </AuthProvider>
