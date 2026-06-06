@@ -14,9 +14,9 @@ const CREDS = { login: "login", password: "1234" };
 const STORAGE_KEY = "ritatu:auth:loggedIn";
 
 const LOCAL_USER: LocalUser = {
-  uid: "stas",
-  email: "stas@local",
-  displayName: "Stas",
+  uid: "user",
+  email: "user@local",
+  displayName: "User",
 };
 
 type AuthContextValue = {

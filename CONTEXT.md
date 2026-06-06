@@ -1,181 +1,89 @@
 # Ritatu Project Context
 
-Last updated: 2026-05-24
+Last updated: 2026-06-06
 
 ## Current Project State
 
-Ritatu is a React Native + Expo + TypeScript macro tracker converted from the original Flutter plan.
+Ritatu is a React Native + Expo SDK 56 + TypeScript macro tracker. Fully local — no Firebase, no backend, no authentication server. All data in AsyncStorage.
 
-Implemented MVP areas:
-- Expo Router app structure in `app/`.
-- Core nutrition calculations in `src/core/macroCalculator.ts`.
-- Firebase config/auth/firestore services in `src/services/` and `src/data/`.
-- Providers for auth, user profile, and meals in `src/providers/`.
-- Screens for login, onboarding, home, add meal, barcode scan, photo scan, manual entry, profile, and history in `src/screens/`.
-- Shared UI components in `src/components/`.
-- Daily meals cache through AsyncStorage.
-- Slice 1 scanner/UI polish started: Open Food Facts v2 lookup, improved barcode scanner states, accessibility labels/hints, warm orange accent palette.
-- `PRODUCT.md` and `DESIGN.md` now exist for future `impeccable` UI work.
+### What is implemented
 
-Verification that was passing after implementation:
-- `npx tsc --noEmit`
-- Metro bundle request: `http://localhost:8081/index.bundle?platform=ios&dev=true&minify=false`
+- Expo Router file-based navigation with custom BottomTabBar (3 tabs + FAB speed-dial)
+- HomeScreen split into focused components under `src/screens/home/`
+- DiaryView — daily log with meal sections, date navigation
+- AddFoodSheet — product search with 3 tabs (search/recent/custom), 500ms debounce
+- Open Food Facts search (CGI endpoint, name-only, pl + world parallel, Basic Auth, CORS-safe)
+- Barcode scanner screen
+- Photo analysis screen (GPT-4o mini vision, macro estimation per 100g)
+- WeeklyScreen — bar chart, 7-day dots, macro averages, weekly insights (flags macros below 80% of goal)
+- ProfileScreen — color-coded 2×2 goal tiles, settings list
+- HistoryScreen — scrollable meal history by day
+- Progress photos and weight tracking (MeasurementsView)
+- Custom products (saved to AsyncStorage)
+- Quick add (one-shot meal without product lookup)
+- MacroConfirmSheet — confirm/edit AI analysis before saving
+- EAS Build + EAS Update configured (branch: preview)
 
-Dev server was started with:
+### Auth
 
-```sh
-npm start -- --port 8081
-```
+Local only. Hardcoded: `stas` / `1234`. `LocalUser.uid = "stas"`.
 
-## Important Product Rules
+## Product Rules
 
-- Calories are never stored. They are always calculated from macros:
-  `protein * 4 + carbs * 4 + fat * 9`.
-- AI never returns final calories. AI returns dish name, macros per 100 g, and estimated weight.
-- User must always confirm/edit weight before saving any meal.
-- Macro colors:
-  - kcal: `#378ADD`
-  - protein: `#639922`
-  - carbs: `#BA7517`
-  - fat: `#E24B4A`
-  - over goal: red `#E24B4A`
-- No micros, subscriptions, social features, or custom product database.
+- Calories are never stored — always calculated: `protein * 4 + carbs * 4 + fat * 9`
+- AI vision returns macros per 100g + estimated weight, never final calories
+- User must confirm weight before saving any meal
+- No micros, no subscriptions, no social features
 
-## Firestore Shape
+## Macro colors
 
-Current practical implementation:
-- User profile document: `users/{uid}`
-- Meals collection: `meals/{mealId}` with `userId`
-
-Meal day query:
-- `userId == uid`
-- `timestamp >= startOfDay`
-- `timestamp < endOfDay`
-- `orderBy(timestamp, desc)`
-
-Note: the original plan wrote `users/{uid}/profile`, but Firestore document paths need an even number of path segments. `users/{uid}` is the current profile document.
+- kcal: `#FF6524` (orange, same as accent)
+- protein: `#5BB8F5` (blue)
+- carbs: `#E8B840` (amber)
+- fat: `#B89CF0` (violet)
+- over goal: `#FF4F6B` (red/danger)
 
 ## Environment Variables
 
-Set these before testing real auth/API flows:
-
-```sh
-EXPO_PUBLIC_FIREBASE_API_KEY=
-EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=
-EXPO_PUBLIC_FIREBASE_PROJECT_ID=
-EXPO_PUBLIC_FIREBASE_APP_ID=
-EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=
-EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=
-EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=
-EXPO_PUBLIC_API_BASE_URL=
+```env
+EXPO_PUBLIC_OPENAI_API_KEY=""
+EXPO_PUBLIC_OPENAI_VISION_MODEL=""
+EXPO_PUBLIC_API_BASE_URL=""
+EXPO_PUBLIC_OFF_USERNAME=""
+EXPO_PUBLIC_OFF_PASSWORD=""
 ```
 
-## Open Food Facts API Notes
+`.env` is gitignored. Never commit secrets.
 
-Before doing any new barcode scanning feature, read or re-check the official docs:
-- Main API docs: https://openfoodfacts.github.io/openfoodfacts-server/api/
-- API cheatsheet: https://openfoodfacts.github.io/openfoodfacts-server/api/ref-cheatsheet/
-- Barcode scanning guide: https://openfoodfacts.github.io/openfoodfacts-server/api/tutorials/scanning-barcodes/
+## Open Food Facts
 
-Key rules from the docs:
-- Current stable API version is v2.
-- Product lookup should use:
-  `GET https://world.openfoodfacts.org/api/v2/product/{barcode}.json`
-- Limit response payload with `fields`, for example:
-  `fields=code,product_name,nutriments`
-- Open Food Facts asks clients to set a custom User-Agent identifying the app.
-- Read product queries do not need authentication.
-- Rate limits matter:
-  - product reads: 15 requests/min/IP
-  - search reads: 10 requests/min/IP
-- Do not build search-as-you-type against Open Food Facts search endpoints.
-- For scanned EAN/UPC values, do not hand-normalize aggressively. OFF server normalizes common barcode forms; validate only when needed.
-- Barcode scan UX should include:
-  - clear viewfinder/instructions,
-  - loading state immediately after scan,
-  - manual fallback,
-  - graceful product-not-found state,
-  - clear network/server error messages.
+- Search endpoint: `/cgi/search.pl?search_simple=1&action=process&json=1` — name-only search, avoids brand/tag false positives
+- Barcode endpoint: `/api/v2/product/{barcode}.json`
+- Parallel sources: `pl.openfoodfacts.org` + `world.openfoodfacts.org` + USDA, deduplicated by `code`
+- Basic Auth via `EXPO_PUBLIC_OFF_*` env vars to avoid rate limiting
+- Web platform: OFF fetches skipped (no CORS headers on OFF subdomains)
 
-Current implementation file:
-- `src/services/openFoodFactsService.ts`
+## OpenAI Vision
 
-Current barcode behavior:
-- Uses API v2 product lookup with `fields=code,product_name,nutriments,image_front_url`.
-- Returns separate `found`, `not_found`, `incomplete`, and `network_error` states.
-- Sends `User-Agent` from fetch headers. Browser targets may block this; keep backend/proxy in mind for production.
-- Scanner screen keeps users in flow and offers retry/manual entry instead of abrupt redirect.
+- Default model: `gpt-4o-mini`
+- Two modes: direct API (key in env) or local proxy (`npm run api`)
+- Returns JSON: `dish_name`, `estimated_weight_g`, `protein_per_100g`, `carbs_per_100g`, `fat_per_100g`, `confidence`, `note`
+- Prompt instructs model that liquid foods (smoothies, soups) have low per-100g values (60–130 kcal/100g)
+- Refine flow: user can add context and re-analyze with the same photo
 
-## OpenAI Vision Notes
+## EAS
 
-Current implementation file:
-- `src/services/gptVisionService.ts`
-
-Keep the original product rule:
-- GPT returns JSON only.
-- It returns dish name, estimated weight, confidence, macros per 100 g, and note.
-- The app calculates calories and always shows `MacroConfirmSheet`.
-- React Native must not contain an OpenAI API key.
-- `OPENAI_API_KEY` belongs only on the backend/proxy.
-- The app calls `POST {EXPO_PUBLIC_API_BASE_URL}/analyze-meal-photo` with `{ imageBase64, mimeType }`.
-- Expected backend response can be either the `VisionMealResult` JSON directly or `{ "result": VisionMealResult }`.
+- Project ID: `17100aa9-d04f-433e-9ff8-e1f2d85ec48e`
+- Build profile: `preview` (internal distribution APK)
+- Update branch: `preview`
+- OTA update: JS-only changes → `eas update --branch preview --message "..."`
+- Full rebuild required: native libs, icons, permissions, `app.config.js` native settings
 
 ## Development Preferences
 
-- Keep files complete and small.
-- No new packages unless the user agrees.
-- Prefer existing components/providers over adding new architecture.
-- Comments only for non-obvious logic.
-- User prefers fast implementation; tests are skipped for now, but TypeScript verification should be run before claiming completion.
-- For UI animation, micro-interactions, polish, or visual redesign, use the `impeccable` skill before changing UI files.
-- When `impeccable` applies, follow its motion rules: do not animate layout properties, use ease-out quart/quint/expo style motion, avoid bounce/elastic effects, and run its required preflight for real UI implementation work.
-
-## Local Skills Worth Using
-
-Use these installed skills when relevant:
-- `impeccable`: UI polish, visual direction, color, layout, animation, micro-interactions.
-- `make-interfaces-feel-better`: smaller UI details such as spacing, touch feedback, cards, shadows, typography, empty states.
-- `react-best-practices`: React/React Native component structure, rendering performance, hooks, memoization, data flow.
-- `accessibility`: accessibility pass before shipping UI screens, especially forms, scanner, onboarding, and sheets.
-- `api-design`: any backend/proxy/API design, especially if OpenAI or Open Food Facts calls move behind a server.
-- `openai-docs`: before changing OpenAI model usage, Vision request shape, structured outputs, or prompt strategy.
-- `security-review`: auth, Firestore rules, env/secrets, OpenAI key exposure, user data access.
-- `debug-like-expert`: stubborn runtime issues, Firebase auth problems, Expo camera/scanner failures.
-- `lint`: formatting/linting pass when a linter is added.
-- `review`: code review stance before PR/commit.
-- `verify-before-complete`: before saying a feature is done; always produce fresh verification evidence.
-
-## Visual Direction Notes
-
-Color inspiration requested from https://www.rayzacher.pl/en, lightly adapted, not copied 1:1.
-
-Observed palette:
-- warm orange accent: `#E59B5B`
-- orange hover/highlight: `#FCB26F`
-- muted warm tan: `#B78B65`
-- paper cream: `#F5F0E8`
-- near-black warm base: `#070604`
-- card dark: `#11100C`
-
-Ritatu direction:
-- Keep Ritatu mostly bright, clean, food-tracker friendly.
-- Use the orange as a restrained accent for primary actions, scan/photo moments, focus states, and selected controls.
-- Keep macro semantic colors stable: kcal blue, protein green, carbs yellow/orange, fat red.
-- Avoid turning the whole app into the dark portfolio palette. The inspiration is warmth and orange accent energy, not a full dark site clone.
-- If implementing visual changes, use `impeccable` first and consider adding proper `PRODUCT.md` / `DESIGN.md` so the skill has stable project context.
-
-## Manual Setup Checklist
-
-You need to configure these by hand:
-- Firebase project in the Firebase Console.
-- Web app in Firebase project, then copy Firebase web config into env variables.
-- Enable Firebase Authentication.
-- Enable Google provider in Firebase Auth.
-- Configure OAuth consent screen / Google Cloud credentials if Google Sign-In requires it.
-- Create Firestore database.
-- Add Firestore indexes if the day meals query asks for one in the console.
-- Add Firestore security rules before any real user testing.
-- Create an OpenAI API key.
-- Keep the OpenAI API key only in backend/proxy env as `OPENAI_API_KEY`; never expose it as `EXPO_PUBLIC_*`.
-- Provide `EXPO_PUBLIC_API_BASE_URL` to the mobile app once the proxy exists.
-- Register/fill Open Food Facts API usage form before serious usage and use a custom app User-Agent when improving barcode requests.
+- No new packages without explicit agreement
+- No Firebase, no remote database
+- Comments only for non-obvious logic
+- All styles via `StyleSheet.create({})` — no styled-components
+- `paddingHorizontal: 20` on all main screens (consistent safe margin)
+- TypeScript strict — run `npx tsc --noEmit` before declaring a feature done

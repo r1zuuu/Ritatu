@@ -7,61 +7,85 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm start          # Start Expo dev server (opens Metro bundler)
+npm start          # Start Expo dev server (Metro bundler)
 npm run android    # Build and run on Android device/emulator
-npm run ios        # Build and run on iOS simulator
-npm run web        # Start in browser
-npm run api        # Start local OpenAI proxy (scripts/openai-proxy.mjs) — required for AI photo analysis
+npm run web        # Start in browser (OFF search disabled — CORS)
+npm run api        # Start local OpenAI proxy (scripts/openai-proxy.mjs)
+eas build --platform android --profile preview   # Build APK via EAS
+eas update --branch preview --message "..."      # OTA JS update
 ```
 
-Environment variables (set in `.env`, read through `src/config/env.ts` via `expo-constants`):
-- `EXPO_PUBLIC_API_BASE_URL` — base URL for the OpenAI proxy
-- `EXPO_PUBLIC_OPENAI_API_KEY` / `OPENAI_API_KEY` — OpenAI key for vision
-- `EXPO_PUBLIC_OPENAI_VISION_MODEL` — vision model name
+Environment variables (set in `.env`, never commit this file):
+- `EXPO_PUBLIC_OPENAI_API_KEY` — OpenAI key for vision analysis
+- `EXPO_PUBLIC_OPENAI_VISION_MODEL` — override model (default: gpt-4o-mini)
+- `EXPO_PUBLIC_API_BASE_URL` — base URL for local OpenAI proxy
+- `EXPO_PUBLIC_OFF_USERNAME` / `EXPO_PUBLIC_OFF_PASSWORD` — Open Food Facts Basic Auth (avoids rate limiting on pl.openfoodfacts.org)
 
 ## Architecture
 
 ### Routing
-Expo Router with file-based routing. Files in `app/` map to routes:
-- `app/_layout.tsx` — root layout, mounts providers: `AuthProvider → UserProfileProvider → MealsProvider`
-- `app/index.tsx` — redirect logic (login vs home)
-- `app/home.tsx` → `src/screens/HomeScreen.tsx`
-- `app/add-meal/index.tsx`, `barcode.tsx`, `manual.tsx`, `photo.tsx` → their screen counterparts
+Expo Router with file-based routing. Files in `app/` are thin re-exports; all logic lives in `src/screens/`.
 
-Screen logic lives in `src/screens/`; `app/` files are thin re-exports.
+- `app/_layout.tsx` — root Stack layout, loads fonts, mounts providers: `AuthProvider → UserProfileProvider → MealsProvider`. Tab screens use `animation: "none"` to avoid slide overlap.
+- `app/index.tsx` — redirect logic (login vs home)
+- `app/home.tsx` → `src/screens/home/HomeScreen.tsx`
+- `app/weekly.tsx` → `src/screens/WeeklyScreen.tsx`
+- `app/profile.tsx` → `src/screens/ProfileScreen.tsx`
+- `app/history.tsx` → `src/screens/HistoryScreen.tsx`
+- `app/add-meal/barcode.tsx`, `photo.tsx`, `manual.tsx` → their screen counterparts
+
+### Navigation
+Custom `BottomTabBar` component (not Expo Router tabs). Renders 3 equal tabs (Dziennik / Tydzień / Profil) plus a floating FAB in the bottom-right corner that opens a speed-dial with Skaner / Zdjęcie options. Tab switching uses `router.replace()`.
 
 ### Data storage
-**No Firebase.** Everything is `AsyncStorage` only. Storage keys follow `ritatu:<domain>:<uid>:<dateKey>` pattern. Key repositories:
-- `src/data/mealRepository.ts` — CRUD for `MealEntry[]` per day, stored as JSON
-- `src/data/userRepository.ts` — user profile
-- `src/data/developerRepository.ts` — developer settings + `CUSTOM_PRODUCTS_KEY`, `WEIGHTS_KEY`
-- `src/data/progressPhotoRepository.ts` — progress photo metadata + file persistence
+**No Firebase.** Everything is `AsyncStorage` only. Storage keys follow `ritatu:<domain>:<uid>:<dateKey>` pattern.
+- `src/data/mealRepository.ts` — CRUD for `MealEntry[]` per day
+- `src/data/userRepository.ts` — user profile with macro goals
+- `src/data/developerRepository.ts` — dev settings, `CUSTOM_PRODUCTS_KEY`, `WEIGHTS_KEY`
+- `src/data/progressPhotoRepository.ts` — progress photo metadata
 
 ### Auth
-Local-only. `src/providers/AuthProvider.tsx` stores a boolean flag in AsyncStorage. Hardcoded credentials: `stas` / `1234`. `LocalUser.uid = "stas"` is the key used for all meal storage.
+Local-only. `src/providers/AuthProvider.tsx` stores a boolean flag in AsyncStorage. Hardcoded credentials: `stas` / `1234`. `LocalUser.uid = "stas"` is the key used for all storage.
 
 ### Core data model
-`MealEntry` (and `MealDraft`) stores macros **per 100 g** (`proteinPer100g`, `carbsPer100g`, `fatPer100g`) plus `weightG` (the actual eaten weight). Actual macros are always computed via:
+`MealEntry` (and `MealDraft`) stores macros **per 100 g** plus `weightG`. Actual macros are computed via:
 
 ```ts
 calculateMealMacros(meal, meal.weightG)  // src/core/macroCalculator.ts
 ```
 
-The macro calculator multiplies per-100g values by `weightG / 100`. This means a `weightG` of 320 with `proteinPer100g = 30` yields 96g protein.
-
-### HomeScreen
-`src/screens/HomeScreen.tsx` is a large self-contained monolith (~1500 lines). It owns:
-- `DiaryView` — daily log with sections (Śniadanie / Obiad / Kolacja / Przekąska)
-- `AddFoodSheet` — search sheet with tabs (search/recent/custom), queries Open Food Facts on 500ms debounce
-- `FoodDetailSheet` — amount picker before confirming add
-- `CreateCustomSheet` — creates custom products (saved to `CUSTOM_PRODUCTS_KEY`)
-- `MeasurementsView` — weight trend chart + progress photos
-
-`FoodItem` (home-screen display type) is distinct from `MealDraft` (save format). Key flag: `per100: boolean` — if true, `amount` is in grams; if false, `amount` is a count of portions and `weightG` is stored as `amount * 100`.
+### HomeScreen structure
+The monolith has been split. `src/screens/HomeScreen.tsx` re-exports from `src/screens/home/`:
+- `HomeScreen.tsx` — orchestrator (~350 lines), manages all state
+- `DiaryView.tsx` — daily log with meal sections
+- `AddFoodSheet.tsx` — search sheet (search/recent/custom tabs), 500ms debounce
+- `FoodDetailSheet.tsx` — amount picker before saving
+- `CreateCustomSheet.tsx` — create custom products
+- `MeasurementsView.tsx` — weight chart + progress photos
+- `QuickAddSheet.tsx`, `AddProgressPhotoSheet.tsx`, `FormField.tsx`
+- `types.ts` — `FoodItem` display type (distinct from `MealDraft`)
+- `foodDb.ts` — local fallback food database
 
 ### External services
-- `src/services/openFoodFactsService.ts` — barcode lookup (`lookupProductByBarcode`) and name search (`searchProductsByName`) against `pl.openfoodfacts.org`
-- `src/services/gptVisionService.ts` — OpenAI vision for photo meal analysis, calls the local proxy
+
+**Open Food Facts** (`src/services/openFoodFactsService.ts`):
+- Search: `/cgi/search.pl?search_simple=1` — searches by product name only (avoids brand/tag false matches)
+- Parallel fetch: `pl.openfoodfacts.org` + `world.openfoodfacts.org` + USDA, deduplicated by `code`
+- Basic Auth via `offHeaders()` using env credentials
+- Web platform: OFF fetches skipped (no CORS headers) — USDA only
+- Barcode lookup: `/api/v2/product/{barcode}.json` on world subdomain
+
+**GPT Vision** (`src/services/gptVisionService.ts`):
+- Returns `dish_name`, `estimated_weight_g`, `protein_per_100g`, `carbs_per_100g`, `fat_per_100g`, `confidence`, `note`
+- Two modes: direct OpenAI API (key in env) or local proxy (`EXPO_PUBLIC_API_BASE_URL`)
+- Prompt explicitly instructs model that liquid foods have low per-100g macros
 
 ### Theme
-Flat token files: `src/theme/colors.ts`, `src/theme/typography.ts`, `src/theme/spacing.ts`. No styled-components or CSS-in-JS — all styles are `StyleSheet.create({})` inline in each file.
+- `src/theme/colors.ts` — warm dark palette (`background: "#111009"`)
+- `src/theme/typography.ts` — Inter family + Barlow_300Light for uppercase labels only
+- `src/theme/sharedStyles.ts` — shared pressed/disabled/cta styles
+- All styles via `StyleSheet.create({})` inline — no styled-components
+- Fonts loaded in `app/_layout.tsx`: Inter 400/500/600/700, Barlow 300, MaterialSymbols_200ExtraLight
+
+### Screen padding convention
+All main screens use `paddingHorizontal: 20`. Screens with `<Screen padded={false}>` manage their own padding; screens using `<Screen>` (padded=true default) get `padding: 20` from the component — do not add extra horizontal padding on top.
