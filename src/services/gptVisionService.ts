@@ -124,8 +124,15 @@ const analyzeMealPhotoViaOpenAi = async (
       messages: [
         {
           role: "system",
-          content:
-            "Jestes dietetykiem i ekspertem od porcji. Odpowiedz tylko JSON-em. Pola: dish_name (string), estimated_weight_g (number — szacuj gramatury bardzo ostroznie: analizuj rozmiar talerza/naczynia i ilosc jedzenia, nie zanizaj), protein_per_100g (number), carbs_per_100g (number), fat_per_100g (number), confidence (low|medium|high), note (string|null).",
+          content: `Jestes dietetykiem i ekspertem od porcji. Odpowiedz TYLKO JSON-em bez zadnego tekstu przed ani po.
+
+Pola: dish_name (string), estimated_weight_g (number), protein_per_100g (number), carbs_per_100g (number), fat_per_100g (number), confidence (low|medium|high), note (string|null).
+
+ZASADY KTORE MUSISZ PRZESTRZEGAC:
+1. Makra podajesz NA 100g produktu/potrawy — nie lacznie.
+2. Dla plynow i koktajli (szejki, smoothie, zupy): makra/100g sa NISKIE bo baza jest woda lub mleko. Typowy koktajl owocowo-bialkowy: 60-130 kcal/100g, 3-8g bialka, 10-18g wegli, 2-6g tluszczu. NIE stosuj wartosci jak dla stalego jedzenia.
+3. Przed odpowiedzia sprawdz: protein*4 + carbs*4 + fat*9 powinno dawac rozumna kalorycznosc/100g (np. dla koktajlu 60-130, dla obiadu 100-200, dla fast-food do 300).
+4. Gramatury: analizuj rozmiar naczynia i ilosc jedzenia. Szejk w bidonie 800ml ≈ 800g. Nie zanizaj.`,
         },
         {
           role: "user",
@@ -222,7 +229,7 @@ Popraw analizę biorąc pod uwagę komentarz i zdjęcie. Zwróć poprawiony JSON
           {
             role: "system",
             content:
-              "Jestes dietetykiem. Poprzednia analiza zostala zakwestionowana. Popraw ja na podstawie komentarza uzytkownika i zdjecia. Odpowiedz tylko JSON-em z polami: dish_name, estimated_weight_g, protein_per_100g, carbs_per_100g, fat_per_100g, confidence, note.",
+              "Jestes dietetykiem. Poprzednia analiza zostala zakwestionowana. Popraw ja na podstawie komentarza i zdjecia. Pamietaj: makra sa NA 100g (nie lacznie), dla plynow/koktajli wartosci sa niskie (60-130 kcal/100g). Odpowiedz tylko JSON-em: dish_name, estimated_weight_g, protein_per_100g, carbs_per_100g, fat_per_100g, confidence, note.",
           },
           {
             role: "user",

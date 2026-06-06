@@ -40,9 +40,3 @@ yarn-error.*
 # generated native folders
 /ios
 /android
-
-CLAUDE.md
-AGENTS.md
-CONTEXT.md
-DESIGN.md
-PLAN.md
