@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { calculateMealMacros, round } from "../core/macroCalculator";
+import { calculateKcal, calculateMealMacros, round } from "../core/macroCalculator";
 import { SECTIONS, getSectionByTime } from "../core/section";
 import type { Section } from "../core/section";
 import type { MealDraft } from "../data/types";
@@ -13,6 +13,7 @@ type MacroConfirmSheetProps = {
   visible: boolean;
   draft: MealDraft | null;
   warning?: string | null;
+  directMacros?: boolean;
   onClose: () => void;
   onConfirm: (draft: MealDraft) => Promise<void>;
   onRefine?: (userContext: string) => Promise<void>;
@@ -26,6 +27,7 @@ export const MacroConfirmSheet = ({
   visible,
   draft,
   warning,
+  directMacros = false,
   onClose,
   onConfirm,
   onRefine,
@@ -35,6 +37,9 @@ export const MacroConfirmSheet = ({
   const isEditing = Boolean(editingMealId);
 
   const [weight, setWeight] = useState(String(draft?.weightG ?? 100));
+  const [protein, setProtein] = useState(String(round(draft?.proteinPer100g ?? 0)));
+  const [carbs, setCarbs] = useState(String(round(draft?.carbsPer100g ?? 0)));
+  const [fat, setFat] = useState(String(round(draft?.fatPer100g ?? 0)));
   const [section, setSection] = useState<Section>(
     (draft?.section as Section | null | undefined) ?? getSectionByTime(),
   );
@@ -46,6 +51,9 @@ export const MacroConfirmSheet = ({
 
   useEffect(() => {
     setWeight(String(draft?.weightG ?? 100));
+    setProtein(String(round(draft?.proteinPer100g ?? 0)));
+    setCarbs(String(round(draft?.carbsPer100g ?? 0)));
+    setFat(String(round(draft?.fatPer100g ?? 0)));
     setSection((draft?.section as Section | null | undefined) ?? getSectionByTime());
     setSaving(false);
     setDeleting(false);
@@ -56,13 +64,21 @@ export const MacroConfirmSheet = ({
 
   const macros = useMemo(() => {
     if (!draft) return null;
+    if (directMacros) {
+      const p = toNumber(protein);
+      const c = toNumber(carbs);
+      const f = toNumber(fat);
+      return { proteinG: p, carbsG: c, fatG: f, kcal: calculateKcal(p, c, f) };
+    }
     return calculateMealMacros(draft, toNumber(weight));
-  }, [draft, weight]);
+  }, [draft, directMacros, weight, protein, carbs, fat]);
 
   if (!draft) return null;
 
   const busy = saving || deleting || refining;
-  const canSave = Number.isFinite(toNumber(weight)) && toNumber(weight) > 0 && !busy;
+  const canSave = directMacros
+    ? [protein, carbs, fat].every((v) => Number.isFinite(toNumber(v)) && toNumber(v) >= 0) && !busy
+    : Number.isFinite(toNumber(weight)) && toNumber(weight) > 0 && !busy;
 
   return (
     <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -100,19 +116,50 @@ export const MacroConfirmSheet = ({
           ))}
         </View>
 
-        <TextField
-          label="Gramatura (g)"
-          value={weight}
-          onChangeText={setWeight}
-          keyboardType="decimal-pad"
-        />
+        {directMacros ? (
+          <View style={styles.macroRow}>
+            <View style={styles.macroField}>
+              <TextField
+                label="Białko (g)"
+                value={protein}
+                onChangeText={setProtein}
+                keyboardType="decimal-pad"
+              />
+            </View>
+            <View style={styles.macroField}>
+              <TextField
+                label="Węgle (g)"
+                value={carbs}
+                onChangeText={setCarbs}
+                keyboardType="decimal-pad"
+              />
+            </View>
+            <View style={styles.macroField}>
+              <TextField
+                label="Tłuszcze (g)"
+                value={fat}
+                onChangeText={setFat}
+                keyboardType="decimal-pad"
+              />
+            </View>
+          </View>
+        ) : (
+          <TextField
+            label="Gramatura (g)"
+            value={weight}
+            onChangeText={setWeight}
+            keyboardType="decimal-pad"
+          />
+        )}
 
         {macros ? (
           <View style={styles.preview}>
             <Text style={styles.previewValue}>{round(macros.kcal)} kcal</Text>
-            <Text style={styles.previewMeta}>
-              B {round(macros.proteinG)} g · W {round(macros.carbsG)} g · T {round(macros.fatG)} g
-            </Text>
+            {!directMacros ? (
+              <Text style={styles.previewMeta}>
+                B {round(macros.proteinG)} g · W {round(macros.carbsG)} g · T {round(macros.fatG)} g
+              </Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -141,7 +188,18 @@ export const MacroConfirmSheet = ({
             disabled={!canSave}
             onPress={async () => {
               setSaving(true);
-              await onConfirm({ ...draft, weightG: toNumber(weight), section });
+              if (directMacros) {
+                await onConfirm({
+                  ...draft,
+                  weightG: 100,
+                  proteinPer100g: toNumber(protein),
+                  carbsPer100g: toNumber(carbs),
+                  fatPer100g: toNumber(fat),
+                  section,
+                });
+              } else {
+                await onConfirm({ ...draft, weightG: toNumber(weight), section });
+              }
               setSaving(false);
             }}
           />
@@ -262,6 +320,9 @@ const styles = StyleSheet.create({
   },
   previewValue: { color: colors.text, fontSize: 24, fontWeight: "900" },
   previewMeta: { color: colors.muted, fontWeight: "800" },
+
+  macroRow: { flexDirection: "row", gap: 8 },
+  macroField: { flex: 1 },
 
   actions: { flexDirection: "row", gap: 10 },
 

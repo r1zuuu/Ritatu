@@ -110,10 +110,9 @@ export type DateValidationResult = {
 
 export type VisionMealResult = {
   dish_name: string;
-  estimated_weight_g: number;
   confidence: Confidence;
-  protein_per_100g: number;
-  carbs_per_100g: number;
-  fat_per_100g: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
   note: string | null;
 };

@@ -7,6 +7,52 @@ const OPENAI_URL = "https://api.openai.com/v1/responses";
 const MODEL = process.env.OPENAI_MODEL || "gpt-4o";
 const MAX_BODY_BYTES = 16 * 1024 * 1024;
 
+// KEEP IN SYNC z VISION_SYSTEM_PROMPT w src/services/gptVisionService.ts.
+const VISION_SYSTEM_PROMPT = `Jestes ekspertem od wartosci odzywczych i szacowania porcji. Odpowiadasz TYLKO JSON-em, bez tekstu przed ani po.
+
+ZRODLO PRAWDY (kolejnosc waznosci):
+1. OPIS TEKSTOWY uzytkownika jest najwazniejszy. Jesli podaje ilosci ("3 jajka", "4 plastry boczku", "150g ryzu") — policz makro DOKLADNIE z tych ilosci, ze standardowych wartosci odzywczych. NIE zgaduj porcji ze zdjecia, gdy ilosc jest podana w tekscie.
+2. ZDJECIE sluzy do: potwierdzenia, oszacowania skladnikow ktorych user NIE wymienil, oraz dookreslenia porcji tam gdzie opis jest niejasny ("troche ryzu", "duza michka").
+3. Gdy opis i zdjecie sie roznia (user pisze 3 jajka, widac 2) — zaufaj OPISOWI, ale odnotuj rozbieznosc w "note".
+
+METODA — licz skladnik po skladniku, nigdy "na oko" dla calosci:
+- Rozbij posilek na pojedyncze skladniki.
+- Dla kazdego osobno oszacuj protein_g, carbs_g, fat_g z typowych wartosci, np.:
+  - jajko M ~ 6 B / 0 W / 5 T
+  - plaster boczku ~ 3 B / 0 W / 4 T
+  - 100g piersi z kurczaka ~ 31 B / 0 W / 4 T
+  - kromka chleba ~ 3 B / 14 W / 1 T
+  - lyzka oleju/oliwy ~ 0 / 0 / 14 T
+  - 100g ugotowanego ryzu ~ 2.5 B / 28 W / 0.3 T
+  (to przyklady-kotwice; dla innych skladnikow uzyj wiedzy o ich wartosciach)
+- Zsumuj skladniki do protein_g, carbs_g, fat_g calego posilku.
+
+KONTROLA:
+- Sprawdz: protein_g*4 + carbs_g*4 + fat_g*9 powinno dac rozsadna kalorycznosc (obiad domowy 400-800, fast-food 500-1200, koktajl 200-600, przekaska 100-400). Jesli poza skala — popraw skladniki, nie sume.
+
+PEWNOSC (confidence):
+- high: user podal konkretne ilosci wszystkich glownych skladnikow.
+- medium: czesc ilosci z opisu, czesc szacowana ze zdjecia.
+- low: brak opisu lub mocno niejasna porcja; szacujesz glownie ze zdjecia.
+
+JESLI NA ZDJECIU NIE MA JEDZENIA lub nie da sie nic oszacowac: zwroc zera, confidence "low", wyjasnij w "note".
+
+POLA JSON:
+dish_name (string)
+items (array of {name: string, qty: string, protein_g: number, carbs_g: number, fat_g: number})
+protein_g (number) = suma items
+carbs_g (number) = suma items
+fat_g (number) = suma items
+confidence ("low"|"medium"|"high")
+note (string|null) — rozbieznosci, zalozenia, niepewnosci`;
+
+const buildUserText = (mealTitle) => {
+  const description = typeof mealTitle === "string" ? mealTitle.trim() : "";
+  return description
+    ? `OPIS UZYTKOWNIKA (zrodlo prawdy): "${description}". Policz makro zgodnie z opisem (uzyj podanych ilosci doslownie), a zdjecia uzyj do potwierdzenia i dookreslenia skladnikow ktorych user nie wymienil.`
+    : `Brak opisu tekstowego. Oszacuj makro calego posilku ze zdjecia, skladnik po skladniku.`;
+};
+
 function loadDotEnv() {
   const envPath = resolve(process.cwd(), ".env");
   if (!existsSync(envPath)) return;
@@ -76,11 +122,10 @@ function parseOpenAiJson(payload) {
 
   return {
     dish_name: String(parsed.dish_name || "Nieznane danie"),
-    estimated_weight_g: Number(parsed.estimated_weight_g || 100),
     confidence: ["low", "medium", "high"].includes(parsed.confidence) ? parsed.confidence : "low",
-    protein_per_100g: Number(parsed.protein_per_100g || 0),
-    carbs_per_100g: Number(parsed.carbs_per_100g || 0),
-    fat_per_100g: Number(parsed.fat_per_100g || 0),
+    protein_g: Number(parsed.protein_g || 0),
+    carbs_g: Number(parsed.carbs_g || 0),
+    fat_g: Number(parsed.fat_g || 0),
     note: parsed.note == null ? null : String(parsed.note),
   };
 }
@@ -92,7 +137,7 @@ async function analyzeMealPhoto(req, res) {
     return;
   }
 
-  const { imageBase64, mimeType = "image/jpeg" } = await readBody(req);
+  const { imageBase64, mimeType = "image/jpeg", mealTitle } = await readBody(req);
   if (!imageBase64 || typeof imageBase64 !== "string") {
     sendJson(res, 400, { error: "Brakuje imageBase64." });
     return;
@@ -115,7 +160,7 @@ async function analyzeMealPhoto(req, res) {
           content: [
             {
               type: "input_text",
-              text: "You are a nutrition analysis assistant. Always respond with valid JSON only. No markdown, no explanation.",
+              text: VISION_SYSTEM_PROMPT,
             },
           ],
         },
@@ -124,8 +169,7 @@ async function analyzeMealPhoto(req, res) {
           content: [
             {
               type: "input_text",
-              text:
-                'Analyze this meal photo and estimate its nutritional content per 100g.\nReturn ONLY this JSON:\n{\n  "dish_name": "string (in Polish)",\n  "estimated_weight_g": number,\n  "confidence": "low|medium|high",\n  "protein_per_100g": number,\n  "carbs_per_100g": number,\n  "fat_per_100g": number,\n  "note": "string or null"\n}\n\nBe conservative with estimates. If you cannot identify the dish, set confidence to "low".',
+              text: buildUserText(mealTitle),
             },
             {
               type: "input_image",

@@ -69,10 +69,10 @@ export const PhotoScanScreen = () => {
   const applyAnalysis = (analysis: VisionMealResult, uri: string) => {
     setDraft({
       name: mealTitle.trim() || analysis.dish_name,
-      weightG: analysis.estimated_weight_g,
-      proteinPer100g: analysis.protein_per_100g,
-      carbsPer100g: analysis.carbs_per_100g,
-      fatPer100g: analysis.fat_per_100g,
+      weightG: 100,
+      proteinPer100g: analysis.protein_g,
+      carbsPer100g: analysis.carbs_g,
+      fatPer100g: analysis.fat_g,
       source: "photo",
       section: params.section ?? null,
       photoUrl: uri,
@@ -94,10 +94,9 @@ export const PhotoScanScreen = () => {
         applyAnalysis(
           {
             dish_name: mealTitle.trim() || "Makaron z kurczakiem",
-            estimated_weight_g: 360,
-            protein_per_100g: 11.5,
-            carbs_per_100g: 24,
-            fat_per_100g: 5.2,
+            protein_g: 41,
+            carbs_g: 86,
+            fat_g: 19,
             confidence: "medium",
             note: "Wynik mock z panelu developerskiego.",
           },
@@ -122,10 +121,9 @@ export const PhotoScanScreen = () => {
     if (!imageBase64 || !draft) return;
     const previous: VisionMealResult = {
       dish_name: draft.name,
-      estimated_weight_g: draft.weightG,
-      protein_per_100g: draft.proteinPer100g,
-      carbs_per_100g: draft.carbsPer100g,
-      fat_per_100g: draft.fatPer100g,
+      protein_g: draft.proteinPer100g,
+      carbs_g: draft.carbsPer100g,
+      fat_g: draft.fatPer100g,
       confidence: draft.confidence ?? "medium",
       note: draft.note ?? null,
     };
@@ -272,6 +270,7 @@ export const PhotoScanScreen = () => {
       <MacroConfirmSheet
         visible={sheetOpen}
         draft={draft}
+        directMacros
         onClose={() => setSheetOpen(false)}
         onConfirm={async (confirmed) => {
           await addMeal(confirmed);
