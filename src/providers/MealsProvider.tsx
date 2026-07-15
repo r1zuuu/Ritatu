@@ -82,6 +82,8 @@ export const MealsProvider = ({ children }: PropsWithChildren) => {
         section: draft.section ?? null,
         barcode: draft.barcode ?? null,
         photoUrl: draft.photoUrl ?? null,
+        note: draft.note ?? null,
+        confidence: draft.confidence,
       });
       const nextMeals = await getCachedMealsForDay(user.uid, today());
       setMeals(nextMeals);

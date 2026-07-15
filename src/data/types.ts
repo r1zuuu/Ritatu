@@ -24,6 +24,8 @@ export type MealEntry = {
   section?: string | null;
   barcode?: string | null;
   photoUrl?: string | null;
+  note?: string | null;
+  confidence?: Confidence;
 };
 
 export type WeightEntry = {
@@ -108,9 +110,20 @@ export type DateValidationResult = {
   estimatedChangeKg: number;
 };
 
+export type VisionItem = {
+  name: string;
+  weight_g: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+};
+
 export type VisionMealResult = {
   dish_name: string;
   confidence: Confidence;
+  items: VisionItem[];
+  // Totals + total_weight_g are computed by code (reduce over items), not by the LLM.
+  total_weight_g: number;
   protein_g: number;
   carbs_g: number;
   fat_g: number;

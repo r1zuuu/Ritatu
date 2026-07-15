@@ -14,7 +14,8 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { MacroConfirmSheet } from "../components/MacroConfirmSheet";
 import { Screen } from "../components/Screen";
-import type { MealDraft, VisionMealResult } from "../data/types";
+import { calculateMealMacros, totalsToPer100g } from "../core/macroCalculator";
+import type { MealDraft, VisionItem, VisionMealResult } from "../data/types";
 import { getDeveloperSettings } from "../data/developerRepository";
 import { useMeals } from "../providers/MealsProvider";
 import { analyzeMealPhoto, refineMealAnalysis } from "../services/gptVisionService";
@@ -33,6 +34,7 @@ export const PhotoScanScreen = () => {
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imageMimeType, setImageMimeType] = useState("image/jpeg");
   const [draft, setDraft] = useState<MealDraft | null>(null);
+  const [items, setItems] = useState<VisionItem[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,12 +69,15 @@ export const PhotoScanScreen = () => {
   };
 
   const applyAnalysis = (analysis: VisionMealResult, uri: string) => {
+    setItems(analysis.items);
     setDraft({
       name: mealTitle.trim() || analysis.dish_name,
-      weightG: 100,
-      proteinPer100g: analysis.protein_g,
-      carbsPer100g: analysis.carbs_g,
-      fatPer100g: analysis.fat_g,
+      ...totalsToPer100g(
+        analysis.total_weight_g,
+        analysis.protein_g,
+        analysis.carbs_g,
+        analysis.fat_g,
+      ),
       source: "photo",
       section: params.section ?? null,
       photoUrl: uri,
@@ -94,10 +99,16 @@ export const PhotoScanScreen = () => {
         applyAnalysis(
           {
             dish_name: mealTitle.trim() || "Makaron z kurczakiem",
+            confidence: "medium",
+            items: [
+              { name: "Makaron", weight_g: 200, protein_g: 12, carbs_g: 62, fat_g: 2 },
+              { name: "Kurczak", weight_g: 120, protein_g: 29, carbs_g: 0, fat_g: 5 },
+              { name: "Sos", weight_g: 80, protein_g: 0, carbs_g: 24, fat_g: 12 },
+            ],
+            total_weight_g: 400,
             protein_g: 41,
             carbs_g: 86,
             fat_g: 19,
-            confidence: "medium",
             note: "Wynik mock z panelu developerskiego.",
           },
           imageUri,
@@ -119,12 +130,15 @@ export const PhotoScanScreen = () => {
 
   const handleRefine = async (userContext: string) => {
     if (!imageBase64 || !draft) return;
+    const totals = calculateMealMacros(draft, draft.weightG);
     const previous: VisionMealResult = {
       dish_name: draft.name,
-      protein_g: draft.proteinPer100g,
-      carbs_g: draft.carbsPer100g,
-      fat_g: draft.fatPer100g,
       confidence: draft.confidence ?? "medium",
+      items,
+      total_weight_g: draft.weightG,
+      protein_g: totals.proteinG,
+      carbs_g: totals.carbsG,
+      fat_g: totals.fatG,
       note: draft.note ?? null,
     };
     const refined = await refineMealAnalysis(imageBase64, imageMimeType, previous, userContext);
@@ -136,6 +150,7 @@ export const PhotoScanScreen = () => {
     setImageUri(null);
     setImageBase64(null);
     setDraft(null);
+    setItems([]);
     setSheetOpen(false);
     setError(null);
   };
@@ -270,11 +285,12 @@ export const PhotoScanScreen = () => {
       <MacroConfirmSheet
         visible={sheetOpen}
         draft={draft}
-        directMacros
+        items={items}
         onClose={() => setSheetOpen(false)}
         onConfirm={async (confirmed) => {
           await addMeal(confirmed);
           setDraft(null);
+          setItems([]);
           router.replace("/home");
         }}
         onRefine={imageBase64 ? handleRefine : undefined}
