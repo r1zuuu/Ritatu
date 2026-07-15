@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { calculateKcal, calculateMealMacros, round } from "../core/macroCalculator";
+import { calculateKcal, calculateMealMacros, round, totalsToPer100g } from "../core/macroCalculator";
 import { SECTIONS, getSectionByTime } from "../core/section";
 import type { Section } from "../core/section";
-import type { MealDraft } from "../data/types";
+import type { MealDraft, VisionItem } from "../data/types";
 import { colors } from "../theme/colors";
 import { typography } from "../theme/typography";
 import { Button } from "./Button";
@@ -12,8 +12,9 @@ import { TextField } from "./TextField";
 type MacroConfirmSheetProps = {
   visible: boolean;
   draft: MealDraft | null;
+  // Tryb "zdjęcie": edytowalna lista składników. Nieobecne = tryb gramatury.
+  items?: VisionItem[];
   warning?: string | null;
-  directMacros?: boolean;
   onClose: () => void;
   onConfirm: (draft: MealDraft) => Promise<void>;
   onRefine?: (userContext: string) => Promise<void>;
@@ -23,11 +24,33 @@ type MacroConfirmSheetProps = {
 
 const toNumber = (value: string) => Number(value.replace(",", "."));
 
+// Reprezentacja składnika w edytorze: makra per 100g są stałe (z modelu),
+// zmienna jest tylko waga (weightText). Makra liczymy z per100g * waga/100,
+// więc edycja wagi nigdy nie rozjeżdża makr.
+type EditItem = {
+  name: string;
+  weightText: string;
+  proteinPer100g: number;
+  carbsPer100g: number;
+  fatPer100g: number;
+};
+
+const toEditItem = (it: VisionItem): EditItem => {
+  const factor = it.weight_g > 0 ? it.weight_g / 100 : 1;
+  return {
+    name: it.name,
+    weightText: String(round(it.weight_g)),
+    proteinPer100g: it.protein_g / factor,
+    carbsPer100g: it.carbs_g / factor,
+    fatPer100g: it.fat_g / factor,
+  };
+};
+
 export const MacroConfirmSheet = ({
   visible,
   draft,
+  items,
   warning,
-  directMacros = false,
   onClose,
   onConfirm,
   onRefine,
@@ -35,11 +58,10 @@ export const MacroConfirmSheet = ({
   editingMealId,
 }: MacroConfirmSheetProps) => {
   const isEditing = Boolean(editingMealId);
+  const itemsMode = items !== undefined;
 
   const [weight, setWeight] = useState(String(draft?.weightG ?? 100));
-  const [protein, setProtein] = useState(String(round(draft?.proteinPer100g ?? 0)));
-  const [carbs, setCarbs] = useState(String(round(draft?.carbsPer100g ?? 0)));
-  const [fat, setFat] = useState(String(round(draft?.fatPer100g ?? 0)));
+  const [editItems, setEditItems] = useState<EditItem[]>(() => (items ? items.map(toEditItem) : []));
   const [section, setSection] = useState<Section>(
     (draft?.section as Section | null | undefined) ?? getSectionByTime(),
   );
@@ -51,34 +73,49 @@ export const MacroConfirmSheet = ({
 
   useEffect(() => {
     setWeight(String(draft?.weightG ?? 100));
-    setProtein(String(round(draft?.proteinPer100g ?? 0)));
-    setCarbs(String(round(draft?.carbsPer100g ?? 0)));
-    setFat(String(round(draft?.fatPer100g ?? 0)));
+    setEditItems(items ? items.map(toEditItem) : []);
     setSection((draft?.section as Section | null | undefined) ?? getSectionByTime());
     setSaving(false);
     setDeleting(false);
     setRefineOpen(false);
     setRefineText("");
     setRefining(false);
-  }, [draft]);
+  }, [draft, items]);
 
   const macros = useMemo(() => {
     if (!draft) return null;
-    if (directMacros) {
-      const p = toNumber(protein);
-      const c = toNumber(carbs);
-      const f = toNumber(fat);
-      return { proteinG: p, carbsG: c, fatG: f, kcal: calculateKcal(p, c, f) };
+    if (itemsMode) {
+      const t = editItems.reduce(
+        (acc, it) => {
+          const w = toNumber(it.weightText);
+          const factor = Number.isFinite(w) && w > 0 ? w / 100 : 0;
+          return {
+            proteinG: acc.proteinG + it.proteinPer100g * factor,
+            carbsG: acc.carbsG + it.carbsPer100g * factor,
+            fatG: acc.fatG + it.fatPer100g * factor,
+            weightG: acc.weightG + (Number.isFinite(w) && w > 0 ? w : 0),
+          };
+        },
+        { proteinG: 0, carbsG: 0, fatG: 0, weightG: 0 },
+      );
+      return { ...t, kcal: calculateKcal(t.proteinG, t.carbsG, t.fatG) };
     }
-    return calculateMealMacros(draft, toNumber(weight));
-  }, [draft, directMacros, weight, protein, carbs, fat]);
+    const w = toNumber(weight);
+    return { ...calculateMealMacros(draft, w), weightG: w };
+  }, [draft, itemsMode, editItems, weight]);
 
   if (!draft) return null;
 
   const busy = saving || deleting || refining;
-  const canSave = directMacros
-    ? [protein, carbs, fat].every((v) => Number.isFinite(toNumber(v)) && toNumber(v) >= 0) && !busy
+  const canSave = itemsMode
+    ? editItems.length > 0 && !busy
     : Number.isFinite(toNumber(weight)) && toNumber(weight) > 0 && !busy;
+
+  const updateItemWeight = (index: number, text: string) =>
+    setEditItems((prev) => prev.map((it, i) => (i === index ? { ...it, weightText: text } : it)));
+
+  const removeItem = (index: number) =>
+    setEditItems((prev) => prev.filter((_, i) => i !== index));
 
   return (
     <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -116,32 +153,38 @@ export const MacroConfirmSheet = ({
           ))}
         </View>
 
-        {directMacros ? (
-          <View style={styles.macroRow}>
-            <View style={styles.macroField}>
-              <TextField
-                label="Białko (g)"
-                value={protein}
-                onChangeText={setProtein}
-                keyboardType="decimal-pad"
-              />
-            </View>
-            <View style={styles.macroField}>
-              <TextField
-                label="Węgle (g)"
-                value={carbs}
-                onChangeText={setCarbs}
-                keyboardType="decimal-pad"
-              />
-            </View>
-            <View style={styles.macroField}>
-              <TextField
-                label="Tłuszcze (g)"
-                value={fat}
-                onChangeText={setFat}
-                keyboardType="decimal-pad"
-              />
-            </View>
+        {itemsMode ? (
+          <View style={styles.itemsList}>
+            {editItems.length === 0 ? (
+              <Text style={styles.note}>Brak wykrytych składników.</Text>
+            ) : (
+              editItems.map((it, index) => (
+                <View key={`${it.name}-${index}`} style={styles.itemRow}>
+                  <Text style={styles.itemName} numberOfLines={1}>
+                    {it.name}
+                  </Text>
+                  <View style={styles.itemWeight}>
+                    <TextInput
+                      style={styles.itemWeightInput}
+                      value={it.weightText}
+                      onChangeText={(t) => updateItemWeight(index, t)}
+                      keyboardType="decimal-pad"
+                      editable={!busy}
+                    />
+                    <Text style={styles.itemUnit}>g</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => removeItem(index)}
+                    hitSlop={8}
+                    disabled={busy}
+                    style={({ pressed }) => [styles.itemRemove, pressed && { opacity: 0.5 }]}
+                    accessibilityLabel={`Usuń ${it.name}`}
+                  >
+                    <Text style={styles.itemRemoveText}>✕</Text>
+                  </Pressable>
+                </View>
+              ))
+            )}
           </View>
         ) : (
           <TextField
@@ -155,11 +198,10 @@ export const MacroConfirmSheet = ({
         {macros ? (
           <View style={styles.preview}>
             <Text style={styles.previewValue}>{round(macros.kcal)} kcal</Text>
-            {!directMacros ? (
-              <Text style={styles.previewMeta}>
-                B {round(macros.proteinG)} g · W {round(macros.carbsG)} g · T {round(macros.fatG)} g
-              </Text>
-            ) : null}
+            <Text style={styles.previewMeta}>
+              B {round(macros.proteinG)} g · W {round(macros.carbsG)} g · T {round(macros.fatG)} g
+              {itemsMode ? ` · ${round(macros.weightG)} g` : ""}
+            </Text>
           </View>
         ) : null}
 
@@ -176,27 +218,21 @@ export const MacroConfirmSheet = ({
               }}
             />
           ) : (
-            <Button
-              title="Anuluj"
-              variant="secondary"
-              onPress={onClose}
-              disabled={busy}
-            />
+            <Button title="Anuluj" variant="secondary" onPress={onClose} disabled={busy} />
           )}
           <Button
             title={saving ? "Zapisuję..." : "Zapisz"}
             disabled={!canSave}
             onPress={async () => {
               setSaving(true);
-              if (directMacros) {
-                await onConfirm({
-                  ...draft,
-                  weightG: 100,
-                  proteinPer100g: toNumber(protein),
-                  carbsPer100g: toNumber(carbs),
-                  fatPer100g: toNumber(fat),
-                  section,
-                });
+              if (itemsMode && macros) {
+                const per100g = totalsToPer100g(
+                  macros.weightG,
+                  macros.proteinG,
+                  macros.carbsG,
+                  macros.fatG,
+                );
+                await onConfirm({ ...draft, ...per100g, section });
               } else {
                 await onConfirm({ ...draft, weightG: toNumber(weight), section });
               }
@@ -312,6 +348,36 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
 
+  itemsList: { gap: 8 },
+  itemRow: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  itemName: { ...typography.body, color: colors.text, flex: 1 },
+  itemWeight: { alignItems: "center", flexDirection: "row", gap: 3 },
+  itemWeightInput: {
+    ...typography.body,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    color: colors.text,
+    minWidth: 56,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    textAlign: "right",
+  },
+  itemUnit: { ...typography.label, color: colors.muted },
+  itemRemove: { paddingHorizontal: 4, paddingVertical: 2 },
+  itemRemoveText: { color: colors.muted, fontSize: 16, fontWeight: "900" },
+
   preview: {
     borderRadius: 8,
     backgroundColor: colors.surfaceAlt,
@@ -320,9 +386,6 @@ const styles = StyleSheet.create({
   },
   previewValue: { color: colors.text, fontSize: 24, fontWeight: "900" },
   previewMeta: { color: colors.muted, fontWeight: "800" },
-
-  macroRow: { flexDirection: "row", gap: 8 },
-  macroField: { flex: 1 },
 
   actions: { flexDirection: "row", gap: 10 },
 

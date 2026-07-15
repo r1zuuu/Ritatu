@@ -46,6 +46,23 @@ export const calculateMealMacros = (
   };
 };
 
+// Total (per-porcja) makra + realna waga → per-100g, jak trzyma je MealEntry.
+// Guard: przy zerowej wadze zwraca zera z waga 100, zeby nie dzielic przez 0.
+export const totalsToPer100g = (
+  totalWeightG: number,
+  proteinG: number,
+  carbsG: number,
+  fatG: number,
+) => {
+  const factor = totalWeightG > 0 ? totalWeightG / 100 : 1;
+  return {
+    weightG: totalWeightG > 0 ? totalWeightG : 100,
+    proteinPer100g: proteinG / factor,
+    carbsPer100g: carbsG / factor,
+    fatPer100g: fatG / factor,
+  };
+};
+
 export const calculateBMR = (
   weightKg: number,
   heightCm: number,
