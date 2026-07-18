@@ -1,9 +1,10 @@
 import { Platform } from "react-native";
 import type { MealDraft } from "../data/types";
 import { env } from "../config/env";
-import { searchUsdaProducts } from "./usdaService";
 
 const OFF_URL = "https://world.openfoodfacts.org";
+// New search index — replaces the deprecated /cgi/search.pl (which now 503s)
+const OFF_SEARCH_URL = "https://search.openfoodfacts.org/search";
 const PRODUCT_FIELDS = ["code", "product_name", "nutriments", "image_front_url"].join(",");
 const SEARCH_FIELDS = [
   "code",
@@ -52,8 +53,9 @@ type OpenFoodFactsSearchProduct = {
   nutriments?: OffNutriments;
 };
 
+// search-a-licious returns { count, hits: [...] } — not the legacy { products: [...] }
 type OpenFoodFactsSearchResponse = {
-  products?: OpenFoodFactsSearchProduct[];
+  hits?: OpenFoodFactsSearchProduct[];
 };
 
 export type ProductLookupResult =
@@ -109,57 +111,32 @@ const productToSearchItem = (
   };
 };
 
-const fetchOffSearch = async (
-  baseUrl: string,
-  trimmed: string,
-): Promise<OpenFoodFactsSearchItem[]> => {
-  const url =
-    `${baseUrl}/cgi/search.pl` +
-    `?search_terms=${encodeURIComponent(trimmed)}` +
-    `&search_simple=1` +
-    `&action=process` +
-    `&json=1` +
-    `&page_size=20` +
-    `&fields=${SEARCH_FIELDS}`;
-
-  let response: Response;
-  try {
-    response = await fetch(url, { headers: offHeaders() });
-  } catch {
-    return [];
-  }
-
-  if (!response.ok) return [];
-
-  const data = (await response.json()) as OpenFoodFactsSearchResponse;
-  return (data.products ?? [])
-    .map(productToSearchItem)
-    .filter((item): item is OpenFoodFactsSearchItem => Boolean(item));
-};
-
 export const searchProductsByName = async (
   query: string,
 ): Promise<OpenFoodFactsSearchItem[]> => {
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
 
-  // OFF subdomains don't send CORS headers — browser blocks them; skip on web entirely
-  const isWeb = Platform.OS === "web";
-  const [plResults, worldResults, usdaResults] = await Promise.all([
-    !isWeb ? fetchOffSearch("https://pl.openfoodfacts.org", trimmed) : Promise.resolve([] as OpenFoodFactsSearchItem[]),
-    !isWeb ? fetchOffSearch(OFF_URL, trimmed) : Promise.resolve([] as OpenFoodFactsSearchItem[]),
-    searchUsdaProducts(trimmed).catch(() => [] as OpenFoodFactsSearchItem[]),
-  ]);
+  // OFF search doesn't send CORS headers — browser blocks it; skip on web entirely
+  if (Platform.OS === "web") return [];
 
-  const seen = new Set<string>();
-  const merged: OpenFoodFactsSearchItem[] = [];
-  for (const item of [...plResults, ...worldResults, ...usdaResults]) {
-    if (!seen.has(item.code)) {
-      seen.add(item.code);
-      merged.push(item);
-    }
+  // Omit langs: the server default full-text search surfaces Polish products fine; langs=pl alone returns almost nothing
+  const url =
+    `${OFF_SEARCH_URL}` +
+    `?q=${encodeURIComponent(trimmed)}` +
+    `&page_size=20` +
+    `&fields=${SEARCH_FIELDS}`;
+
+  // Let network/5xx failures reject so the UI shows an error instead of a false "no results"
+  const response = await fetch(url, { headers: offHeaders() });
+  if (!response.ok) {
+    throw new Error(`OFF search failed: HTTP ${response.status}`);
   }
-  return merged;
+
+  const data = (await response.json()) as OpenFoodFactsSearchResponse;
+  return (data.hits ?? [])
+    .map(productToSearchItem)
+    .filter((item): item is OpenFoodFactsSearchItem => item !== null);
 };
 
 export const lookupProductByBarcode = async (
