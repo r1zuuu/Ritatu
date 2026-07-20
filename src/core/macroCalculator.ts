@@ -44,9 +44,11 @@ export const calculateMealMacros = (
   const fatG = per100g.fatPer100g * factor;
 
   // Honor stored energy when present (label kcal, one-off entries); otherwise
-  // fall back to the 4/4/9 formula for older/derived entries.
-  const kcal = Number.isFinite(per100g.kcalPer100g as number)
-    ? (per100g.kcalPer100g as number) * factor
+  // fall back to the 4/4/9 formula. 0/null/NaN count as "unset" so a food with
+  // macros but no energy still shows sensible calories.
+  const stored = per100g.kcalPer100g;
+  const kcal = typeof stored === "number" && stored > 0
+    ? stored * factor
     : calculateKcal(proteinG, carbsG, fatG);
 
   return { kcal, proteinG, carbsG, fatG };
