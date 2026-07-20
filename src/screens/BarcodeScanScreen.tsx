@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Easing, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Easing, Linking, Pressable, StyleSheet, Text, Vibration, View } from "react-native";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { MacroConfirmSheet } from "../components/MacroConfirmSheet";
@@ -28,6 +28,7 @@ export const BarcodeScanScreen = () => {
   const [loading, setLoading] = useState(false);
   const [lookupError, setLookupError] = useState<LookupError | null>(null);
   const [draft, setDraft] = useState<MealDraft | null>(null);
+  const [torch, setTorch] = useState(false);
   const scanLockedRef = useRef(false);
   const pulse = useRef(new Animated.Value(0)).current;
 
@@ -85,6 +86,7 @@ export const BarcodeScanScreen = () => {
     try {
       const settings = await getDeveloperSettings();
       if (settings.mockBarcodeEnabled) {
+        Vibration.vibrate(40);
         setDraft({
           name: "Produkt testowy",
           weightG: 100,
@@ -104,16 +106,19 @@ export const BarcodeScanScreen = () => {
       try {
         const result = await lookupProductByBarcode(data, controller.signal);
         if (result.ok) {
+          Vibration.vibrate(40);
           setDraft({ ...result.draft, section: params.section ?? null });
         } else {
           // Stay locked so the live camera doesn't re-scan the same code in a
           // loop; the error panel's "Skanuj ponownie" releases it via resetScan.
+          Vibration.vibrate([0, 40, 80, 40]);
           setLookupError(result);
         }
       } finally {
         clearTimeout(timeout);
       }
     } catch {
+      Vibration.vibrate([0, 40, 80, 40]);
       setLookupError({
         ok: false,
         status: "network_error",
@@ -181,6 +186,7 @@ export const BarcodeScanScreen = () => {
         accessibilityLabel="Skaner kodow kreskowych"
         style={styles.camera}
         facing="back"
+        enableTorch={torch}
         onBarcodeScanned={handleScan}
         barcodeScannerSettings={{
           barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "code128"],
@@ -199,10 +205,18 @@ export const BarcodeScanScreen = () => {
           >
             <Icon name="chevron-left" size={20} color={colors.paper} />
           </Pressable>
-          <View>
+          <View style={styles.headerText}>
             <Text style={styles.eyebrow}>Skan produktu</Text>
             <Text style={styles.title}>Ustaw kod w ramce</Text>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={torch ? "Wyłącz latarkę" : "Włącz latarkę"}
+            style={({ pressed }) => [styles.back, torch && styles.torchOn, pressed && styles.pressed]}
+            onPress={() => setTorch((v) => !v)}
+          >
+            <Icon name={torch ? "flash-on" : "flash-off"} size={20} color={torch ? colors.warmBlack : colors.paper} />
+          </Pressable>
         </View>
 
         <View style={styles.viewfinderWrap} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -300,6 +314,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
   },
+  headerText: { flex: 1 },
+  torchOn: { backgroundColor: colors.accent },
   eyebrow: {
     color: colors.accentHover,
     fontWeight: "900",
