@@ -9,6 +9,7 @@ export type FoodItem = {
   per100: boolean;
   portionWeightG?: number;
   custom?: boolean;
+  oneTime?: boolean;
   code?: string;
   imageUrl?: string | null;
 };

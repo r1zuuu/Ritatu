@@ -30,7 +30,12 @@ export const calculateKcal = (proteinG: number, carbsG: number, fatG: number) =>
   proteinG * 4 + carbsG * 4 + fatG * 9;
 
 export const calculateMealMacros = (
-  per100g: { proteinPer100g: number; carbsPer100g: number; fatPer100g: number },
+  per100g: {
+    proteinPer100g: number;
+    carbsPer100g: number;
+    fatPer100g: number;
+    kcalPer100g?: number | null;
+  },
   weightG: number,
 ): MealMacros => {
   const factor = weightG / 100;
@@ -38,12 +43,13 @@ export const calculateMealMacros = (
   const carbsG = per100g.carbsPer100g * factor;
   const fatG = per100g.fatPer100g * factor;
 
-  return {
-    kcal: calculateKcal(proteinG, carbsG, fatG),
-    proteinG,
-    carbsG,
-    fatG,
-  };
+  // Honor stored energy when present (label kcal, one-off entries); otherwise
+  // fall back to the 4/4/9 formula for older/derived entries.
+  const kcal = Number.isFinite(per100g.kcalPer100g as number)
+    ? (per100g.kcalPer100g as number) * factor
+    : calculateKcal(proteinG, carbsG, fatG);
+
+  return { kcal, proteinG, carbsG, fatG };
 };
 
 // Total (per-porcja) makra + realna waga → per-100g, jak trzyma je MealEntry.
@@ -138,6 +144,7 @@ export const summarizeMeals = (meals: Array<{
   proteinPer100g: number;
   carbsPer100g: number;
   fatPer100g: number;
+  kcalPer100g?: number | null;
   weightG: number;
 }>) =>
   meals.reduce(
