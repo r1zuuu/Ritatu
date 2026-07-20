@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../providers/AuthProvider";
 import { colors } from "../theme/colors";
@@ -23,7 +23,10 @@ export const LoginScreen = () => {
   };
 
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+    <KeyboardAvoidingView
+      style={[styles.wrap, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
       {/* Center: logo */}
       <View style={styles.center}>
         <View style={styles.logoBox}>
@@ -50,6 +53,7 @@ export const LoginScreen = () => {
             placeholder="login"
             placeholderTextColor={colors.muted}
             autoCapitalize="none"
+            returnKeyType="next"
           />
         </View>
 
@@ -62,6 +66,8 @@ export const LoginScreen = () => {
             secureTextEntry
             placeholder="••••"
             placeholderTextColor={colors.muted}
+            returnKeyType="done"
+            onSubmitEditing={() => { if (login && password && !loading) void handleSignIn(); }}
           />
         </View>
 
@@ -74,7 +80,7 @@ export const LoginScreen = () => {
           <Text style={styles.btnText}>{loading ? "Logowanie..." : "Zaloguj się"}</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -178,7 +184,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   btnText: {
-    color: "#fff",
+    color: colors.warmBlack,
     fontSize: 15,
     fontWeight: "700",
   },

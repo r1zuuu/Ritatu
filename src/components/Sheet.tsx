@@ -1,7 +1,9 @@
 import { type ReactNode, useEffect, useState } from "react";
 import {
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -80,7 +82,11 @@ export const Sheet = ({ visible, onClose, title, children, height = "88%" }: She
         <Animated.View style={[StyleSheet.absoluteFill, s.backdrop, backdropStyle]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={close} />
         </Animated.View>
-        <View style={[s.flex, { pointerEvents: "box-none" }]}>
+        <KeyboardAvoidingView
+          style={s.flex}
+          pointerEvents="box-none"
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <Animated.View style={[s.surface, { height }, sheetStyle]}>
             <View style={s.handle} />
             {title ? (
@@ -98,7 +104,7 @@ export const Sheet = ({ visible, onClose, title, children, height = "88%" }: She
             ) : null}
             {children}
           </Animated.View>
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
