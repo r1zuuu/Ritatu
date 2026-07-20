@@ -10,7 +10,9 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
 import type { IconName } from "../components/Icon";
 import { Screen } from "../components/Screen";
@@ -26,6 +28,7 @@ import type { DeveloperSettings } from "../data/types";
 import { useAuth } from "../providers/AuthProvider";
 import { useUserProfile } from "../providers/UserProfileProvider";
 import { colors } from "../theme/colors";
+import { radius, space } from "../theme/layout";
 import { typography } from "../theme/typography";
 
 export const ProfileScreen = () => {
@@ -119,12 +122,12 @@ export const ProfileScreen = () => {
       >
         {/* Goals */}
         <Text style={s.sectionLabel}>CELE DZIENNE</Text>
-        <View style={s.goalGrid}>
+        <Animated.View entering={FadeInDown.duration(420)} style={s.goalGrid}>
           <GoalTile label="Kalorie" unit="kcal" value={kcal} onChangeText={setKcal} color={colors.accent} />
           <GoalTile label="Białko" unit="g" value={protein} onChangeText={setProtein} color={colors.protein} />
           <GoalTile label="Węglowodany" unit="g" value={carbs} onChangeText={setCarbs} color={colors.carbs} />
           <GoalTile label="Tłuszcze" unit="g" value={fat} onChangeText={setFat} color={colors.fat} />
-        </View>
+        </Animated.View>
 
         <Pressable
           style={({ pressed }) => [s.saveBtn, pressed && s.saveBtnPressed]}
@@ -138,21 +141,23 @@ export const ProfileScreen = () => {
 
         {/* Dev tools */}
         <Text style={[s.sectionLabel, { marginTop: 28 }]}>NARZĘDZIA</Text>
-        <View style={s.toolList}>
-          <ToolRow icon="sparkles" label="Seed danych demo" onPress={() => void seed()} first />
-          <ToolRow icon="reset" label="Reset onboardingu" onPress={() => void resetOnboarding()} />
-          <ToolRow
-            icon="upload"
-            label="Eksportuj dane JSON"
-            onPress={async () => setExportJson(await exportLocalData())}
-          />
-          <ToolRow
-            icon="trash"
-            label="Wyczyść dane lokalne"
-            onPress={clearMealsAndLocalData}
-            danger
-          />
-        </View>
+        <Animated.View entering={FadeInDown.delay(100).duration(420)}>
+          <Card style={s.toolList}>
+            <ToolRow icon="sparkles" label="Seed danych demo" onPress={() => void seed()} first />
+            <ToolRow icon="reset" label="Reset onboardingu" onPress={() => void resetOnboarding()} />
+            <ToolRow
+              icon="upload"
+              label="Eksportuj dane JSON"
+              onPress={async () => setExportJson(await exportLocalData())}
+            />
+            <ToolRow
+              icon="trash"
+              label="Wyczyść dane lokalne"
+              onPress={clearMealsAndLocalData}
+              danger
+            />
+          </Card>
+        </Animated.View>
 
         {message && message !== "Zapisano." ? (
           <Text style={s.message}>{message}</Text>
@@ -184,7 +189,7 @@ function GoalTile({
   onChangeText: (v: string) => void; color: string;
 }) {
   return (
-    <View style={s.tile}>
+    <Card style={s.tile}>
       <View style={[s.tileBar, { backgroundColor: color }]} />
       <Text style={s.tileLabel}>{label}</Text>
       <View style={s.tileInputRow}>
@@ -198,7 +203,7 @@ function GoalTile({
         />
         <Text style={[s.tileUnit, { color }]}>{unit}</Text>
       </View>
-    </View>
+    </Card>
   );
 }
 
@@ -235,17 +240,14 @@ const s = StyleSheet.create({
   goalGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 12,
+    gap: space.md,
+    marginBottom: space.md,
   },
   tile: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: radius.lg,
     gap: 10,
     overflow: "hidden",
-    padding: 14,
+    padding: space.lg,
     width: "47.5%",
   },
   tileBar: {
@@ -281,10 +283,10 @@ const s = StyleSheet.create({
   saveBtn: {
     alignItems: "center",
     backgroundColor: colors.accent,
-    borderRadius: 14,
+    borderRadius: radius.md,
     flexDirection: "row",
     gap: 8,
-    height: 50,
+    height: 52,
     justifyContent: "center",
     marginBottom: 28,
   },
@@ -297,10 +299,7 @@ const s = StyleSheet.create({
 
   /* Tool list */
   toolList: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderRadius: 18,
-    borderWidth: 1,
+    borderRadius: radius.lg,
     overflow: "hidden",
   },
   toolRow: {
