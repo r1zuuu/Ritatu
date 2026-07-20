@@ -77,6 +77,7 @@ export const MealsProvider = ({ children }: PropsWithChildren) => {
         proteinPer100g: draft.proteinPer100g,
         carbsPer100g: draft.carbsPer100g,
         fatPer100g: draft.fatPer100g,
+        kcalPer100g: draft.kcalPer100g ?? null,
         timestamp: new Date(),
         source: draft.source,
         section: draft.section ?? null,

@@ -111,7 +111,11 @@ export const AddFoodSheet = ({
               id: `recent:${key}`,
               name: m.name,
               detail: "100 g",
-              calories: Math.round((m.proteinPer100g * 4) + (m.carbsPer100g * 4) + (m.fatPer100g * 9)),
+              calories: Math.round(
+                Number.isFinite(m.kcalPer100g as number)
+                  ? (m.kcalPer100g as number)
+                  : (m.proteinPer100g * 4) + (m.carbsPer100g * 4) + (m.fatPer100g * 9),
+              ),
               protein: m.proteinPer100g,
               carbs: m.carbsPer100g,
               fat: m.fatPer100g,
