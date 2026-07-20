@@ -20,25 +20,22 @@ export const QuickAddSheet = ({ visible, section, onClose, onConfirm }: Props) =
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
   const [fat, setFat] = useState("");
-  const [portionWeight, setPortionWeight] = useState("100");
 
   const valid = name.trim().length > 0 && Number.isFinite(parseDecimal(kcal));
 
-  const reset = () => { setName(""); setKcal(""); setProtein(""); setCarbs(""); setFat(""); setPortionWeight("100"); };
+  const reset = () => { setName(""); setKcal(""); setProtein(""); setCarbs(""); setFat(""); };
 
   const confirm = () => {
-    const pw = parseDecimal(portionWeight);
-    const portionWeightG = Number.isFinite(pw) && pw > 0 ? pw : 100;
     onConfirm({
       id: Date.now(),
       name: name.trim(),
-      detail: `1 porcja · ${portionWeightG} g`,
+      detail: "Jednorazowo",
       calories: parseDecimal(kcal) || 0,
       protein: parseDecimal(protein) || 0,
       carbs: parseDecimal(carbs) || 0,
       fat: parseDecimal(fat) || 0,
       per100: false,
-      portionWeightG,
+      oneTime: true,
     });
     reset();
   };
@@ -47,9 +44,8 @@ export const QuickAddSheet = ({ visible, section, onClose, onConfirm }: Props) =
     <Sheet visible={visible} onClose={() => { reset(); onClose(); }} title={`Jednorazowo → ${section}`} height="88%">
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <FormField label="Nazwa potrawy" value={name} onChangeText={setName} />
-        <FormField label="Gramatura porcji (g)" value={portionWeight} onChangeText={setPortionWeight} keyboardType="decimal-pad" />
-        <FormField label="Kalorie na porcję" value={kcal} onChangeText={setKcal} keyboardType="decimal-pad" featured />
-        <Text style={s.hint}>Makra na całą porcję</Text>
+        <FormField label="Kalorie" value={kcal} onChangeText={setKcal} keyboardType="decimal-pad" featured />
+        <Text style={s.hint}>Makra (opcjonalnie)</Text>
         <View style={s.macroGrid}>
           <FormField label="Białko (g)" value={protein} onChangeText={setProtein} keyboardType="decimal-pad" compact />
           <FormField label="Węgle (g)" value={carbs} onChangeText={setCarbs} keyboardType="decimal-pad" compact />

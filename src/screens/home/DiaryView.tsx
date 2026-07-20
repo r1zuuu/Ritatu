@@ -206,7 +206,7 @@ export const DiaryView = ({ meals, dateOffset, currentDate, setDateOffset, profi
                           </View>
                           <View style={s.foodText}>
                             <Text style={s.foodName} numberOfLines={1}>{meal.name}</Text>
-                            <Text style={s.foodSub}>{Math.round(meal.weightG)} g</Text>
+                            <Text style={s.foodSub}>{meal.source === "quick" ? "jednorazowo" : `${Math.round(meal.weightG)} g`}</Text>
                           </View>
                           <Text style={s.foodKcal}>{Math.round(macros.kcal)} kcal</Text>
                           <Pressable
