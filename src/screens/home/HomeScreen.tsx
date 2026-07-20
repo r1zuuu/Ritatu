@@ -314,6 +314,7 @@ export const HomeScreen = () => {
           proteinPer100g: editingMeal.proteinPer100g,
           carbsPer100g: editingMeal.carbsPer100g,
           fatPer100g: editingMeal.fatPer100g,
+          kcalPer100g: editingMeal.kcalPer100g,
           source: editingMeal.source,
           section: editingMeal.section,
         } : null}
