@@ -260,7 +260,7 @@ export const WeeklyScreen = () => {
                       <Text style={s.cardEyebrow}>Średnia dzienna</Text>
                       <View style={s.avgRow}>
                         <Text style={s.avgNum}>{round(avgKcal)}</Text>
-                        <Text style={s.avgUnit}>kcal  </Text>
+                        <Text style={s.avgUnit}>kcal</Text>
                         <Text style={s.avgOf}>z {round(goalKcal)}</Text>
                       </View>
                       <AnimatedBar
@@ -414,7 +414,7 @@ const s = StyleSheet.create({
   cardEyebrow: { ...typography.stat, color: colors.muted, marginBottom: 12 },
 
   // Avg kcal
-  avgRow: { alignItems: "flex-end", flexDirection: "row", marginBottom: 12 },
+  avgRow: { alignItems: "flex-end", flexDirection: "row", gap: 8, marginBottom: 12 },
   avgNum: { color: colors.text, fontFamily: "Inter_700Bold", fontSize: 40, lineHeight: 44 },
   avgUnit: { ...typography.label, color: colors.muted, paddingBottom: 5 },
   avgOf: { ...typography.label, color: colors.muted, paddingBottom: 5 },
