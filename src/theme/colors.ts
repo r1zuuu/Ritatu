@@ -2,9 +2,10 @@ export const colors = {
   // Warm dark — brown undertone, not cold blue-black
   background: "#111009",
   surface:    "#181410",
-  card:       "#1E1A12",
-  cardHov:    "#252018",
-  surfaceAlt: "#252018",
+  card:       "#221C13",
+  cardHov:    "#2B2318",
+  elevated:   "#2A2317",
+  surfaceAlt: "#2B2318",
 
   // Warm-tinted borders
   border:    "rgba(250,240,215,0.07)",

@@ -24,9 +24,7 @@ module.exports = {
       package: "com.ritatu.app",
       adaptiveIcon: {
         backgroundColor: "#F5F7F2",
-        foregroundImage: "./assets/android-icon-foreground.png",
-        backgroundImage: "./assets/android-icon-background.png",
-        monochromeImage: "./assets/android-icon-monochrome.png",
+        foregroundImage: "./assets/icon.png",
       },
       predictiveBackGestureEnabled: false,
     },

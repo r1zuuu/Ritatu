@@ -1,12 +1,15 @@
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useWindowDimensions } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const TAB_BAR_HEIGHT = 68;
+import { Card } from "../../components/Card";
 import { IconButton } from "../../components/IconButton";
 import { Icon } from "../../components/Icon";
 import type { ProgressPhoto, UserProfile, WeightEntry } from "../../data/types";
 import { colors } from "../../theme/colors";
+import { radius, space } from "../../theme/layout";
 import { typography } from "../../theme/typography";
 import { sh } from "../../theme/sharedStyles";
 import { angleLabel } from "./AddProgressPhotoSheet";
@@ -17,10 +20,10 @@ function formatDDMM(date: Date) {
 
 function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <View style={s.stat}>
+    <Card style={s.stat}>
       <Text style={s.statLabel}>{label}</Text>
       <Text style={[s.statValue, { color }]}>{value}</Text>
-    </View>
+    </Card>
   );
 }
 
@@ -124,7 +127,8 @@ export const MeasurementsView = ({ weights, profile, progressPhotos, onAddWeight
         <IconButton icon="plus" label="Dodaj pomiar" tone="accent" onPress={onAddWeight} />
       </View>
 
-      <View style={s.card}>
+      <Animated.View entering={FadeInDown.duration(420)}>
+      <Card variant="hero" style={s.card}>
         <View style={s.cardTop}>
           <View>
             <Text style={s.cardLabel}>Aktualna waga</Text>
@@ -146,13 +150,14 @@ export const MeasurementsView = ({ weights, profile, progressPhotos, onAddWeight
           </Pressable>
         </View>
         <WeightTrendChart data={weights} />
-      </View>
+      </Card>
+      </Animated.View>
 
-      <View style={s.stats}>
+      <Animated.View entering={FadeInDown.delay(90).duration(420)} style={s.stats}>
         <StatCard label="Cel" value={profile?.targetWeightKg ? `${profile.targetWeightKg} kg` : "Brak"} color={colors.accent} />
         <StatCard label="Różnica" value={current && start ? `${delta} kg` : "-"} color={delta <= 0 ? colors.green : colors.danger} />
         <StatCard label="Pomiarów" value={String(weights.length)} color={colors.fat} />
-      </View>
+      </Animated.View>
 
       <View style={s.photoHeader}>
         <Text style={s.photoTitle}>Zdjęcia postępu</Text>
@@ -170,7 +175,7 @@ export const MeasurementsView = ({ weights, profile, progressPhotos, onAddWeight
       {progressPhotos.length > 0 ? (
         <View style={s.photoGrid}>
           {progressPhotos.map((photo) => (
-            <View key={photo.id} style={s.photoCard}>
+            <Card key={photo.id} style={s.photoCard}>
               <Image source={{ uri: photo.uri }} style={s.photoImage} />
               <View style={s.photoMeta}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
@@ -186,12 +191,14 @@ export const MeasurementsView = ({ weights, profile, progressPhotos, onAddWeight
                 </View>
                 <Text style={s.photoDate}>{formatDDMM(photo.createdAt)}</Text>
               </View>
-            </View>
+            </Card>
           ))}
         </View>
       ) : (
         <Pressable style={({ pressed }) => [s.emptyPhotos, pressed && sh.pressed]} onPress={onAddPhoto}>
-          <Icon name="image" size={28} color={colors.mutedMid} />
+          <View style={s.emptyPhotoIcon}>
+            <Icon name="image" size={26} color={colors.accent} />
+          </View>
           <Text style={s.emptyPhotoTitle}>Dodaj pierwsze zdjęcie</Text>
         </Pressable>
       )}
@@ -200,10 +207,10 @@ export const MeasurementsView = ({ weights, profile, progressPhotos, onAddWeight
 };
 
 const s = StyleSheet.create({
-  scroll: { paddingHorizontal: 20, paddingTop: 10 },
+  scroll: { paddingHorizontal: space.xl, paddingTop: 10 },
   header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 14 },
   title: { ...typography.title, color: colors.text },
-  card: { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 22, borderWidth: 1, marginBottom: 12, padding: 16 },
+  card: { marginBottom: space.md, padding: space.lg },
   cardTop: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", marginBottom: 14 },
   cardLabel: { ...typography.label, color: colors.muted },
   currentRow: { alignItems: "baseline", flexDirection: "row", gap: 6, marginTop: 3 },
@@ -211,24 +218,25 @@ const s = StyleSheet.create({
   currentUnit: { ...typography.body, color: colors.muted },
   delta: { ...typography.label, marginTop: 5 },
   deltaMuted: { ...typography.label, color: colors.muted, marginTop: 5 },
-  addButton: { alignItems: "center", backgroundColor: colors.accent, borderRadius: 13, flexDirection: "row", gap: 6, height: 38, paddingHorizontal: 13 },
+  addButton: { alignItems: "center", backgroundColor: colors.accent, borderRadius: radius.pill, flexDirection: "row", gap: 6, height: 38, paddingHorizontal: 15 },
   addButtonText: { ...typography.label, color: colors.warmBlack },
-  stats: { flexDirection: "row", gap: 10, marginBottom: 14 },
-  stat: { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 16, borderWidth: 1, flex: 1, padding: 12 },
+  stats: { flexDirection: "row", gap: space.md, marginBottom: 14 },
+  stat: { borderRadius: radius.md, flex: 1, padding: 14 },
   statLabel: { ...typography.label, color: colors.muted, fontSize: 10 },
   statValue: { ...typography.section, marginTop: 4 },
   photoHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
   photoTitle: { ...typography.section, color: colors.text },
   photoAdd: { alignItems: "center", flexDirection: "row", gap: 6, minHeight: 40 },
   photoAddText: { ...typography.label, color: colors.accent },
-  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  photoCard: { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 16, borderWidth: 1, overflow: "hidden", width: "48%" },
+  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: space.md },
+  photoCard: { borderRadius: radius.md, overflow: "hidden", width: "48%" },
   photoImage: { aspectRatio: 3 / 4, backgroundColor: colors.surface, width: "100%" },
   photoMeta: { padding: 10 },
   photoAngle: { ...typography.label, color: colors.text },
   photoDate: { ...typography.label, color: colors.muted, fontSize: 10, marginTop: 2 },
   photoDelete: { alignItems: "center", height: 24, justifyContent: "center", width: 24 },
-  emptyPhotos: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.border, borderRadius: 18, borderStyle: "dashed", borderWidth: 1.5, gap: 8, padding: 22 },
+  emptyPhotos: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.border, borderRadius: radius.lg, borderWidth: 1, gap: 10, padding: 26 },
+  emptyPhotoIcon: { alignItems: "center", backgroundColor: colors.accentA, borderRadius: radius.pill, height: 52, justifyContent: "center", width: 52 },
   emptyPhotoTitle: { ...typography.section, color: colors.text },
   emptyPhotoText: { ...typography.body, color: colors.muted, textAlign: "center" },
 });

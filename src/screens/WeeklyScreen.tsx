@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  Easing,
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AnimatedBar } from "../components/AnimatedBar";
+import { Card } from "../components/Card";
 import { Screen } from "../components/Screen";
 import { Icon } from "../components/Icon";
 import { summarizeMeals, round } from "../core/macroCalculator";
@@ -9,6 +19,7 @@ import { getMealsForDay } from "../data/mealRepository";
 import { useAuth } from "../providers/AuthProvider";
 import { useUserProfile } from "../providers/UserProfileProvider";
 import { colors } from "../theme/colors";
+import { space } from "../theme/layout";
 import { typography } from "../theme/typography";
 
 const DAY_LABELS = ["PN", "WT", "ŚR", "CZ", "PT", "SO", "ND"];
@@ -42,7 +53,20 @@ const getWeekRange = (days: Date[]) => {
   return `${fmt(days[0])} – ${fmt(days[6])}`;
 };
 
-function MacroRow({ label, avg, goal, color }: { label: string; avg: number; goal: number; color: string }) {
+// Vertical chart bar that grows up from the baseline on mount.
+function WeeklyBar({ pct, color, delay }: { pct: number; color: string; delay: number }) {
+  const h = useSharedValue(0);
+  useEffect(() => {
+    h.value = withDelay(
+      delay,
+      withTiming(Math.max(pct * 100, 4), { duration: 600, easing: Easing.out(Easing.cubic) }),
+    );
+  }, [pct, delay, h]);
+  const style = useAnimatedStyle(() => ({ height: `${h.value}%` }));
+  return <Animated.View style={[s.barFill, { backgroundColor: color }, style]} />;
+}
+
+function MacroRow({ label, avg, goal, color, delay }: { label: string; avg: number; goal: number; color: string; delay: number }) {
   const pct = goal > 0 ? Math.min((avg / goal) * 100, 100) : 0;
   const over = goal > 0 && avg > goal * 1.1;
   return (
@@ -55,8 +79,8 @@ function MacroRow({ label, avg, goal, color }: { label: string; avg: number; goa
         </Text>
       </View>
       <View style={s.macroTrackWrap}>
-        <View style={s.macroTrack}>
-          <View style={[s.macroFill, { width: `${pct}%`, backgroundColor: over ? colors.danger : color }]} />
+        <View style={s.macroTrackFlex}>
+          <AnimatedBar pct={pct} color={over ? colors.danger : color} height={6} delay={delay} track={colors.surfaceAlt} />
         </View>
         <Text style={[s.macroPct, { color: over ? colors.danger : colors.muted }]}>
           {Math.round(pct)}%
@@ -169,37 +193,31 @@ export const WeeklyScreen = () => {
         ) : (
           <>
             {/* ── Bar chart ──────────────────────────── */}
-            <View style={s.chartCard}>
-              <View style={s.chartCols}>
-                {days.map((day, i) => {
-                  const pct = day.kcal > 0 ? Math.min(day.kcal / maxVal, 1) : 0;
-                  const met = !day.isFuture && goalKcal !== null && day.kcal >= goalKcal * 0.9;
-                  const hasData = !day.isFuture && day.kcal > 0;
-                  return (
-                    <View key={day.dateKey} style={s.col}>
-                      <View style={[s.barTrack, day.isFuture && s.barFuture]}>
-                        {hasData && (
-                          <View
-                            style={[
-                              s.barFill,
-                              { height: `${Math.max(pct * 100, 4)}%` },
-                              day.isToday && s.barToday,
-                              met && s.barMet,
-                            ]}
-                          />
-                        )}
+            <Animated.View entering={FadeInDown.duration(420)}>
+              <Card variant="hero" style={s.chartCard}>
+                <View style={s.chartCols}>
+                  {days.map((day, i) => {
+                    const pct = day.kcal > 0 ? Math.min(day.kcal / maxVal, 1) : 0;
+                    const met = !day.isFuture && goalKcal !== null && day.kcal >= goalKcal * 0.9;
+                    const hasData = !day.isFuture && day.kcal > 0;
+                    const barColor = day.isToday ? colors.accent : met ? colors.green : colors.mutedMid;
+                    return (
+                      <View key={day.dateKey} style={s.col}>
+                        <View style={[s.barTrack, day.isFuture && s.barFuture]}>
+                          {hasData && <WeeklyBar pct={pct} color={barColor} delay={200 + i * 55} />}
+                        </View>
+                        <Text style={[s.dayLabel, day.isToday && s.dayToday]}>
+                          {DAY_LABELS[i]}
+                        </Text>
                       </View>
-                      <Text style={[s.dayLabel, day.isToday && s.dayToday]}>
-                        {DAY_LABELS[i]}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-              {goalKcal ? (
-                <Text style={s.chartGoalNote}>cel: {round(goalKcal)} kcal / dzień</Text>
-              ) : null}
-            </View>
+                    );
+                  })}
+                </View>
+                {goalKcal ? (
+                  <Text style={s.chartGoalNote}>cel: {round(goalKcal)} kcal / dzień</Text>
+                ) : null}
+              </Card>
+            </Animated.View>
 
             {/* ── Cel — dots (zawsze 7) ──────────────── */}
             {goalKcal && days.length > 0 ? (
@@ -237,72 +255,74 @@ export const WeeklyScreen = () => {
               <>
                 {/* ── Średnia dzienna ─────────────────── */}
                 {goalKcal ? (
-                  <View style={s.card}>
-                    <Text style={s.cardEyebrow}>Średnia dzienna</Text>
-                    <View style={s.avgRow}>
-                      <Text style={s.avgNum}>{round(avgKcal)}</Text>
-                      <Text style={s.avgUnit}>kcal  </Text>
-                      <Text style={s.avgOf}>z {round(goalKcal)}</Text>
-                    </View>
-                    <View style={s.avgTrack}>
-                      <View
-                        style={[
-                          s.avgFill,
-                          {
-                            width: `${Math.min((avgKcal / goalKcal) * 100, 100)}%`,
-                            backgroundColor: avgKcal > goalKcal * 1.1 ? colors.danger : colors.accent,
-                          },
-                        ]}
+                  <Animated.View entering={FadeInDown.delay(80).duration(420)}>
+                    <Card style={s.card}>
+                      <Text style={s.cardEyebrow}>Średnia dzienna</Text>
+                      <View style={s.avgRow}>
+                        <Text style={s.avgNum}>{round(avgKcal)}</Text>
+                        <Text style={s.avgUnit}>kcal  </Text>
+                        <Text style={s.avgOf}>z {round(goalKcal)}</Text>
+                      </View>
+                      <AnimatedBar
+                        pct={Math.min((avgKcal / goalKcal) * 100, 100)}
+                        color={avgKcal > goalKcal * 1.1 ? colors.danger : colors.accent}
+                        height={6}
+                        delay={220}
+                        track={colors.surfaceAlt}
                       />
-                    </View>
-                  </View>
+                    </Card>
+                  </Animated.View>
                 ) : null}
 
                 {/* ── Makra ───────────────────────────── */}
                 {(goalProtein || goalCarbs || goalFat) ? (
-                  <View style={s.card}>
-                    <Text style={s.cardEyebrow}>Makra — średnio dziennie</Text>
-                    <View style={s.macroStack}>
-                      {goalProtein ? <MacroRow label="Białko" avg={avgProtein} goal={goalProtein} color={colors.protein} /> : null}
-                      {goalCarbs   ? <MacroRow label="Węglowodany" avg={avgCarbs} goal={goalCarbs} color={colors.carbs} /> : null}
-                      {goalFat     ? <MacroRow label="Tłuszcze" avg={avgFat} goal={goalFat} color={colors.fat} /> : null}
-                    </View>
-                  </View>
+                  <Animated.View entering={FadeInDown.delay(140).duration(420)}>
+                    <Card style={s.card}>
+                      <Text style={s.cardEyebrow}>Makra — średnio dziennie</Text>
+                      <View style={s.macroStack}>
+                        {goalProtein ? <MacroRow label="Białko" avg={avgProtein} goal={goalProtein} color={colors.protein} delay={260} /> : null}
+                        {goalCarbs   ? <MacroRow label="Węglowodany" avg={avgCarbs} goal={goalCarbs} color={colors.carbs} delay={320} /> : null}
+                        {goalFat     ? <MacroRow label="Tłuszcze" avg={avgFat} goal={goalFat} color={colors.fat} delay={380} /> : null}
+                      </View>
+                    </Card>
+                  </Animated.View>
                 ) : null}
 
                 {/* ── Insights ────────────────────────── */}
                 {insights.length > 0 ? (
-                  <View style={s.card}>
-                    <Text style={s.cardEyebrow}>Co było za niskie</Text>
-                    <View style={s.insightList}>
-                      {insights.map((item) => (
-                        <View key={item.macro} style={s.insightRow}>
-                          <View style={[s.insightBar, { backgroundColor: item.color }]} />
-                          <Text style={s.insightText}>
-                            Przez ostatnie{" "}
-                            <Text style={s.insightBold}>{activeDayCount} {dniLabel}</Text>
-                            {" "}brakowało Ci {item.macro} — osiągałeś tylko{" "}
-                            <Text style={[s.insightBold, { color: item.color }]}>{item.pct}%</Text>
-                            {" "}celu
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
+                  <Animated.View entering={FadeInDown.delay(200).duration(420)}>
+                    <Card style={s.card}>
+                      <Text style={s.cardEyebrow}>Co było za niskie</Text>
+                      <View style={s.insightList}>
+                        {insights.map((item) => (
+                          <View key={item.macro} style={s.insightRow}>
+                            <View style={[s.insightBar, { backgroundColor: item.color }]} />
+                            <Text style={s.insightText}>
+                              Przez ostatnie{" "}
+                              <Text style={s.insightBold}>{activeDayCount} {dniLabel}</Text>
+                              {" "}brakowało Ci {item.macro} — osiągałeś tylko{" "}
+                              <Text style={[s.insightBold, { color: item.color }]}>{item.pct}%</Text>
+                              {" "}celu
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </Card>
+                  </Animated.View>
                 ) : null}
 
                 {/* ── Quick stats ──────────────────────── */}
-                <View style={s.pillsRow}>
-                  <View style={s.pill}>
+                <Animated.View entering={FadeInDown.delay(260).duration(420)} style={s.pillsRow}>
+                  <Card style={s.pill}>
                     <Text style={s.pillVal}>{loggedDays.length}/{activeDays.length}</Text>
                     <Text style={s.pillLabel}>dni aktywnych</Text>
-                  </View>
-                  <View style={s.pill}>
+                  </Card>
+                  <Card style={s.pill}>
                     <Text style={s.pillVal}>{round(totalKcal)}</Text>
                     <Text style={s.pillLabel}>łącznie kcal</Text>
-                  </View>
+                  </Card>
                   {/* Flame streak pill */}
-                  <View style={[s.pill, streak > 0 && s.pillFlame]}>
+                  <Card style={[s.pill, streak > 0 && s.pillFlame]}>
                     <View style={s.pillStreakRow}>
                       <Icon name="flame" size={16} color={streak > 0 ? colors.accent : colors.muted} />
                       <Text style={[s.pillVal, streak > 0 && { color: colors.accent }]}>
@@ -312,8 +332,8 @@ export const WeeklyScreen = () => {
                     <Text style={[s.pillLabel, streak > 0 && { color: colors.accent }]}>
                       seria dni
                     </Text>
-                  </View>
-                </View>
+                  </Card>
+                </Animated.View>
               </>
             )}
           </>
@@ -324,7 +344,7 @@ export const WeeklyScreen = () => {
 };
 
 const s = StyleSheet.create({
-  scroll: { paddingHorizontal: 20, paddingTop: 20 },
+  scroll: { paddingHorizontal: space.xl, paddingTop: space.xl },
   header: { gap: 4, paddingBottom: 18, paddingTop: 4 },
   eyebrow: { ...typography.stat, color: colors.accent },
   title: { ...typography.title, color: colors.text },
@@ -335,19 +355,15 @@ const s = StyleSheet.create({
 
   // Chart
   chartCard: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginBottom: 8,
-    padding: 16,
-    paddingBottom: 12,
+    marginBottom: space.md,
+    padding: space.lg,
+    paddingBottom: space.md,
   },
   chartCols: { flexDirection: "row", gap: 4, height: 110 },
   col: { alignItems: "center", flex: 1, gap: 7, justifyContent: "flex-end" },
   barTrack: {
     backgroundColor: colors.surfaceAlt,
-    borderRadius: 5,
+    borderRadius: 6,
     flex: 1,
     justifyContent: "flex-end",
     overflow: "hidden",
@@ -356,11 +372,9 @@ const s = StyleSheet.create({
   barFuture: { opacity: 0.25 },
   barFill: {
     backgroundColor: colors.mutedMid,
-    borderRadius: 4,
+    borderRadius: 6,
     width: "100%",
   },
-  barToday: { backgroundColor: colors.accent },
-  barMet: { backgroundColor: colors.green },
   dayLabel: { ...typography.stat, color: colors.muted, fontSize: 9 },
   dayToday: { color: colors.accent },
   chartGoalNote: { ...typography.stat, color: colors.muted, fontSize: 9, marginTop: 8, textAlign: "right" },
@@ -370,7 +384,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: space.md,
     paddingHorizontal: 4,
   },
   dotsCount: { ...typography.stat, color: colors.muted, fontSize: 9 },
@@ -394,33 +408,26 @@ const s = StyleSheet.create({
 
   // Cards
   card: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginBottom: 8,
-    padding: 16,
+    marginBottom: space.md,
+    padding: space.lg,
   },
   cardEyebrow: { ...typography.stat, color: colors.muted, marginBottom: 12 },
 
   // Avg kcal
-  avgRow: { alignItems: "flex-end", flexDirection: "row", marginBottom: 10 },
+  avgRow: { alignItems: "flex-end", flexDirection: "row", marginBottom: 12 },
   avgNum: { color: colors.text, fontFamily: "Inter_700Bold", fontSize: 40, lineHeight: 44 },
   avgUnit: { ...typography.label, color: colors.muted, paddingBottom: 5 },
   avgOf: { ...typography.label, color: colors.muted, paddingBottom: 5 },
-  avgTrack: { backgroundColor: colors.surfaceAlt, borderRadius: 3, height: 5, overflow: "hidden" },
-  avgFill: { borderRadius: 3, height: "100%" },
 
   // Macro rows
   macroStack: { gap: 14 },
-  macroRow: { gap: 5 },
+  macroRow: { gap: 6 },
   macroTop: { flexDirection: "row", justifyContent: "space-between", marginBottom: 2 },
   macroLabel: { ...typography.label, color: colors.text },
   macroVal: { ...typography.label, color: colors.text },
   macroGoal: { color: colors.muted },
   macroTrackWrap: { alignItems: "center", flexDirection: "row", gap: 8 },
-  macroTrack: { backgroundColor: colors.surfaceAlt, borderRadius: 3, flex: 1, height: 5, overflow: "hidden" },
-  macroFill: { borderRadius: 3, height: "100%" },
+  macroTrackFlex: { flex: 1 },
   macroPct: { ...typography.stat, fontSize: 9, minWidth: 28, textAlign: "right" },
 
   // Insights
@@ -431,16 +438,12 @@ const s = StyleSheet.create({
   insightBold: { color: colors.text, fontFamily: "Inter_600SemiBold" },
 
   // Pills
-  pillsRow: { flexDirection: "row", gap: 8, marginBottom: 4 },
+  pillsRow: { flexDirection: "row", gap: space.sm, marginBottom: 4 },
   pill: {
     alignItems: "center",
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderRadius: 16,
-    borderWidth: 1,
     flex: 1,
     gap: 3,
-    paddingVertical: 13,
+    paddingVertical: 14,
   },
   pillFlame: {
     borderColor: colors.accentB,

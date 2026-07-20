@@ -1,24 +1,28 @@
 import { router, usePathname } from "expo-router";
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
   Easing,
   FadeIn,
   FadeInUp,
   FadeOut,
   FadeOutDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getSectionByTime } from "../core/section";
 import { colors } from "../theme/colors";
+import { radius } from "../theme/layout";
 import { typography } from "../theme/typography";
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
 
 const NAV_TABS = [
-  { icon: "utensils" as IconName, route: "/home",    match: "/home" },
-  { icon: "bar-chart" as IconName, route: "/weekly",  match: "/weekly" },
-  { icon: "settings" as IconName, route: "/profile", match: "/profile" },
+  { icon: "utensils" as IconName, label: "Dziennik", route: "/home",    match: "/home" },
+  { icon: "bar-chart" as IconName, label: "Tydzień",  route: "/weekly",  match: "/weekly" },
+  { icon: "settings" as IconName, label: "Profil",   route: "/profile", match: "/profile" },
 ];
 
 type DialOption = {
@@ -32,8 +36,8 @@ const DIAL_OPTIONS: DialOption[] = [
   { label: "Zdjęcie", icon: "camera",  route: "/add-meal/photo" },
 ];
 
-// Inner height of the tab bar (paddingTop + icon + paddingVertical×2)
-const TAB_INNER_H = 50;
+// Inner height of the tab bar (paddingTop + icon + gap + label + paddingBottom)
+const TAB_INNER_H = 58;
 const FAB_SIZE = 56;
 const FAB_RIGHT = 20;
 
@@ -45,6 +49,13 @@ export const BottomTabBar = () => {
   const bottomPad = Math.max(insets.bottom, 8);
   const fabBottom = TAB_INNER_H + bottomPad + 16;
   const dialBottom = fabBottom + FAB_SIZE + 10;
+
+  // FAB icon spins the plus into an × when the speed-dial opens.
+  const spin = useSharedValue(0);
+  useEffect(() => {
+    spin.value = withSpring(dialOpen ? 1 : 0, { damping: 13, stiffness: 170 });
+  }, [dialOpen, spin]);
+  const fabIcon = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value * 45}deg` }] }));
 
   const openRoute = (route: DialOption["route"]) => {
     setDialOpen(false);
@@ -78,7 +89,9 @@ export const BottomTabBar = () => {
                 onPress={() => openRoute(opt.route)}
               >
                 <Text style={s.dialLabel}>{opt.label}</Text>
-                <Icon name={opt.icon} size={20} color={colors.text} />
+                <View style={s.dialIcon}>
+                  <Icon name={opt.icon} size={19} color={colors.accent} />
+                </View>
               </Pressable>
             </Animated.View>
           ))}
@@ -92,10 +105,12 @@ export const BottomTabBar = () => {
         style={({ pressed }) => [s.fab, { bottom: fabBottom }, pressed && s.fabPressed]}
         onPress={() => setDialOpen((v) => !v)}
       >
-        <Icon name={dialOpen ? "x" : "plus"} size={22} color={colors.warmBlack} />
+        <Animated.View style={fabIcon}>
+          <Icon name="plus" size={24} color={colors.warmBlack} />
+        </Animated.View>
       </Pressable>
 
-      {/* Tab bar — 3 equal tabs */}
+      {/* Tab bar — 3 equal tabs with labels + active pill */}
       <View style={[s.bar, { paddingBottom: bottomPad }]}>
         {NAV_TABS.map((tab) => {
           const active = pathname === tab.match;
@@ -103,10 +118,14 @@ export const BottomTabBar = () => {
             <Pressable
               key={tab.route}
               accessibilityRole="button"
+              accessibilityLabel={tab.label}
               style={({ pressed }) => [s.tab, pressed && s.tabPressed]}
               onPress={() => router.replace(tab.route as "/home" | "/weekly" | "/profile")}
             >
-              <Icon name={tab.icon} size={22} color={active ? colors.accent : colors.muted} />
+              <View style={[s.tabInner, active && s.tabInnerActive]}>
+                <Icon name={tab.icon} size={21} color={active ? colors.accent : colors.muted} />
+                <Text style={[s.tabLabel, active && s.tabLabelActive]}>{tab.label}</Text>
+              </View>
             </Pressable>
           );
         })}
@@ -138,14 +157,24 @@ const s = StyleSheet.create({
   dialRowPressed: { opacity: 0.65 },
   dialLabel: {
     ...typography.label,
-    backgroundColor: colors.card,
+    backgroundColor: colors.elevated,
     borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: radius.pill,
     borderWidth: 1,
     color: colors.text,
     overflow: "hidden",
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 9,
+  },
+  dialIcon: {
+    alignItems: "center",
+    backgroundColor: colors.elevated,
+    borderColor: colors.borderMid,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
   },
 
   /* FAB */
@@ -171,17 +200,40 @@ const s = StyleSheet.create({
   bar: {
     alignItems: "center",
     backgroundColor: colors.surface,
-    borderTopColor: colors.border,
-    borderTopWidth: 1,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     flexDirection: "row",
-    paddingTop: 8,
+    paddingHorizontal: 8,
+    paddingTop: 10,
     zIndex: 9,
+    ...Platform.select({
+      android: { elevation: 12 },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
+      },
+    }),
   },
   tab: {
     alignItems: "center",
     flex: 1,
     justifyContent: "center",
-    paddingVertical: 10,
   },
-  tabPressed: { opacity: 0.5 },
+  tabPressed: { opacity: 0.6 },
+  tabInner: {
+    alignItems: "center",
+    borderRadius: radius.pill,
+    gap: 4,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+  },
+  tabInnerActive: { backgroundColor: colors.accentA },
+  tabLabel: {
+    ...typography.stat,
+    color: colors.muted,
+    fontSize: 9,
+  },
+  tabLabelActive: { color: colors.accent },
 });
