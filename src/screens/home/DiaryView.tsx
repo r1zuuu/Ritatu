@@ -1,11 +1,12 @@
-import { useMemo } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useMemo, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBar } from "../../components/AnimatedBar";
 import { Card } from "../../components/Card";
 import { IconButton } from "../../components/IconButton";
 import { Icon } from "../../components/Icon";
+import { Sheet } from "../../components/Sheet";
 import { calculateMealMacros, summarizeMeals } from "../../core/macroCalculator";
 import { SECTIONS, type Section } from "../../core/section";
 import type { MealEntry, UserProfile } from "../../data/types";
@@ -66,6 +67,10 @@ type Props = {
 
 export const DiaryView = ({ meals, dateOffset, currentDate, setDateOffset, profile, onAddFood, onRemoveMeal, onMoveMeal, onEditMeal }: Props) => {
   const insets = useSafeAreaInsets();
+  const [moveTarget, setMoveTarget] = useState<MealEntry | null>(null);
+  const moveFromSection: Section = (SECTIONS as readonly Section[]).includes(moveTarget?.section as Section)
+    ? (moveTarget!.section as Section)
+    : "Przekąska";
   const totals = useMemo(() => {
     const summary = summarizeMeals(meals);
     return {
@@ -93,6 +98,7 @@ export const DiaryView = ({ meals, dateOffset, currentDate, setDateOffset, profi
   ), [meals]);
 
   return (
+    <>
     <ScrollView
       contentContainerStyle={[s.scroll, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]}
       showsVerticalScrollIndicator={false}
@@ -188,13 +194,7 @@ export const DiaryView = ({ meals, dateOffset, currentDate, setDateOffset, profi
                           key={meal.id}
                           style={({ pressed }) => [s.foodRow, mealIndex > 0 && s.foodBorder, pressed && { opacity: 0.75 }]}
                           onPress={() => onEditMeal(meal)}
-                          onLongPress={() => {
-                            const targets = SECTIONS.filter((sec) => sec !== section);
-                            Alert.alert(meal.name, "Przenieś do:", [
-                              ...targets.map((sec) => ({ text: sec, onPress: () => onMoveMeal(meal.id, sec) })),
-                              { text: "Anuluj", style: "cancel" as const },
-                            ]);
-                          }}
+                          onLongPress={() => setMoveTarget(meal)}
                           delayLongPress={400}
                         >
                           <View style={s.foodIcon}>
@@ -240,6 +240,34 @@ export const DiaryView = ({ meals, dateOffset, currentDate, setDateOffset, profi
         })}
       </View>
     </ScrollView>
+
+    <Sheet
+      visible={moveTarget !== null}
+      onClose={() => setMoveTarget(null)}
+      title="Przenieś posiłek"
+      height="52%"
+    >
+      <View style={s.moveWrap}>
+        <Text style={s.moveName} numberOfLines={1}>{moveTarget?.name}</Text>
+        {SECTIONS.filter((sec) => sec !== moveFromSection).map((sec) => (
+          <Pressable
+            key={sec}
+            accessibilityRole="button"
+            accessibilityLabel={`Przenieś do ${sec}`}
+            style={({ pressed }) => [s.moveRow, pressed && sh.pressed]}
+            onPress={() => {
+              if (moveTarget) onMoveMeal(moveTarget.id, sec);
+              setMoveTarget(null);
+            }}
+          >
+            <View style={[s.moveDot, { backgroundColor: SECTION_COLORS[sec] }]} />
+            <Text style={s.moveLabel}>{sec}</Text>
+            <Icon name="chevron-right" size={18} color={colors.muted} />
+          </Pressable>
+        ))}
+      </View>
+    </Sheet>
+    </>
   );
 };
 
@@ -310,4 +338,19 @@ const s = StyleSheet.create({
     width: 26,
   },
   emptyFoodText: { ...typography.label, color: colors.mutedMid },
+  moveWrap: { gap: 10, paddingBottom: 28, paddingHorizontal: 20 },
+  moveName: { ...typography.section, color: colors.text, marginBottom: 4 },
+  moveRow: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+  },
+  moveDot: { borderRadius: 6, height: 11, width: 11 },
+  moveLabel: { ...typography.body, color: colors.text, flex: 1 },
 });

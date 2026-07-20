@@ -16,6 +16,8 @@ export type IconName =
   | "clipboard"
   | "dumbbell"
   | "flame"
+  | "flash-on"
+  | "flash-off"
   | "gauge"
   | "image"
   | "info"
@@ -55,6 +57,8 @@ const symbols: Record<IconName, string> = {
   clipboard: "assignment",
   dumbbell: "fitness_center",
   flame: "local_fire_department",
+  "flash-on": "flashlight_on",
+  "flash-off": "flashlight_off",
   gauge: "speed",
   image: "image",
   info: "info",
