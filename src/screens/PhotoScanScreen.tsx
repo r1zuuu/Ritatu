@@ -1,9 +1,10 @@
 import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -37,6 +38,12 @@ export const PhotoScanScreen = () => {
   const [items, setItems] = useState<VisionItem[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  // Bumped on every analysis start / cancel / timeout. A resolved request only
+  // applies if its id is still current — lets us "cancel" without threading an
+  // AbortSignal through the whole vision service. ponytail: ignores stale
+  // results rather than truly aborting the fetch.
+  const runIdRef = useRef(0);
 
   const pickImage = async (camera: boolean) => {
     setError(null);
@@ -45,7 +52,12 @@ export const PhotoScanScreen = () => {
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
-      setError("Brak uprawnień do zdjęć.");
+      if (permission.canAskAgain) {
+        setError(camera ? "Brak dostępu do aparatu." : "Brak dostępu do galerii.");
+      } else {
+        setError("Dostęp odrzucony — włącz go w ustawieniach systemu.");
+        void Linking.openSettings();
+      }
       return;
     }
 
@@ -69,6 +81,7 @@ export const PhotoScanScreen = () => {
   };
 
   const applyAnalysis = (analysis: VisionMealResult, uri: string) => {
+    setWarning(null);
     setItems(analysis.items);
     setDraft({
       name: mealTitle.trim() || analysis.dish_name,
@@ -91,7 +104,15 @@ export const PhotoScanScreen = () => {
   const runAnalysis = async () => {
     if (!imageBase64 || !imageUri) return;
     setError(null);
+    setWarning(null);
     setPhase("analyzing");
+    const runId = ++runIdRef.current;
+    const timeout = setTimeout(() => {
+      if (runIdRef.current !== runId) return;
+      runIdRef.current++;
+      setError("Analiza trwa zbyt długo. Spróbuj ponownie.");
+      setPhase("ready");
+    }, 45_000);
 
     try {
       const settings = await getDeveloperSettings();
@@ -121,11 +142,20 @@ export const PhotoScanScreen = () => {
         imageMimeType,
         mealTitle.trim() || undefined,
       );
+      if (runIdRef.current !== runId) return;
       applyAnalysis(analysis, imageUri);
     } catch (err) {
+      if (runIdRef.current !== runId) return;
       setError(err instanceof Error ? err.message : "Nie udało się przeanalizować zdjęcia.");
       setPhase("ready");
+    } finally {
+      clearTimeout(timeout);
     }
+  };
+
+  const cancelAnalysis = () => {
+    runIdRef.current++;
+    setPhase("ready");
   };
 
   const handleRefine = async (userContext: string) => {
@@ -141,8 +171,12 @@ export const PhotoScanScreen = () => {
       fat_g: totals.fatG,
       note: draft.note ?? null,
     };
-    const refined = await refineMealAnalysis(imageBase64, imageMimeType, previous, userContext);
-    applyAnalysis(refined, imageUri!);
+    try {
+      const refined = await refineMealAnalysis(imageBase64, imageMimeType, previous, userContext);
+      applyAnalysis(refined, imageUri!);
+    } catch (err) {
+      setWarning(err instanceof Error ? err.message : "Nie udało się poprawić analizy.");
+    }
   };
 
   const resetPhoto = () => {
@@ -262,7 +296,7 @@ export const PhotoScanScreen = () => {
               />
             </>
           ) : phase === "analyzing" ? (
-            <Button title="Analizuję..." disabled onPress={() => {}} />
+            <Button title="Anuluj analizę" variant="secondary" icon="x" onPress={cancelAnalysis} />
           ) : (
             // done — draft ready, sheet was closed
             <>
@@ -286,6 +320,7 @@ export const PhotoScanScreen = () => {
         visible={sheetOpen}
         draft={draft}
         items={items}
+        warning={warning}
         onClose={() => setSheetOpen(false)}
         onConfirm={async (confirmed) => {
           await addMeal(confirmed);

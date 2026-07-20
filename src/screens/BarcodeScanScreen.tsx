@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Easing, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { MacroConfirmSheet } from "../components/MacroConfirmSheet";
@@ -102,12 +102,13 @@ export const BarcodeScanScreen = () => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10_000);
       try {
-        const result = await lookupProductByBarcode(data);
+        const result = await lookupProductByBarcode(data, controller.signal);
         if (result.ok) {
           setDraft({ ...result.draft, section: params.section ?? null });
         } else {
+          // Stay locked so the live camera doesn't re-scan the same code in a
+          // loop; the error panel's "Skanuj ponownie" releases it via resetScan.
           setLookupError(result);
-          scanLockedRef.current = false;
         }
       } finally {
         clearTimeout(timeout);
@@ -119,7 +120,6 @@ export const BarcodeScanScreen = () => {
         barcode: data,
         warning: "Nie udało się pobrać danych. Spróbuj ponownie.",
       });
-      scanLockedRef.current = false;
     } finally {
       setLoading(false);
     }
@@ -160,8 +160,8 @@ export const BarcodeScanScreen = () => {
             Ritatu uzyje aparatu tylko do odczytania kodu kreskowego produktu.
           </Text>
           <Button
-            title="Daj dostep"
-            onPress={() => void requestPermission()}
+            title={permission.canAskAgain ? "Daj dostep" : "Otwórz ustawienia"}
+            onPress={() => (permission.canAskAgain ? void requestPermission() : void Linking.openSettings())}
             accessibilityHint="Otwiera prosbe systemowa o dostep do aparatu"
           />
           <Button
