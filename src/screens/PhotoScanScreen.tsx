@@ -4,7 +4,9 @@ import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  KeyboardAvoidingView,
   Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -191,7 +193,10 @@ export const PhotoScanScreen = () => {
 
   return (
     <Screen>
-      <View style={styles.wrap}>
+      <KeyboardAvoidingView
+        style={styles.wrap}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
         {/* Header */}
         <View style={styles.header}>
           <Pressable
@@ -314,7 +319,7 @@ export const PhotoScanScreen = () => {
             </>
           )}
         </View>
-      </View>
+      </KeyboardAvoidingView>
 
       <MacroConfirmSheet
         visible={sheetOpen}
