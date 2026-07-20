@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet } from "react-native";
 import { colors } from "../theme/colors";
+import { sh } from "../theme/sharedStyles";
 import { Icon, type IconName } from "./Icon";
 
 type IconButtonProps = {
@@ -15,11 +16,12 @@ export const IconButton = ({ icon, label, onPress, tone = "default", disabled = 
     accessibilityRole="button"
     accessibilityLabel={label}
     onPress={disabled ? undefined : onPress}
+    hitSlop={8}
     style={({ pressed }) => [
       styles.button,
       tone === "accent" && styles.accent,
       disabled && styles.disabled,
-      !disabled && pressed && styles.pressed,
+      !disabled && pressed && sh.pressed,
     ]}
   >
     <Icon
@@ -42,5 +44,4 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentA,
   },
   disabled: { opacity: 0.4 },
-  pressed: { opacity: 0.6 },
 });

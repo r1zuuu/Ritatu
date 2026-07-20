@@ -141,13 +141,14 @@ export const searchProductsByName = async (
 
 export const lookupProductByBarcode = async (
   barcode: string,
+  signal?: AbortSignal,
 ): Promise<ProductLookupResult> => {
   const url = `${OFF_URL}/api/v2/product/${encodeURIComponent(barcode)}.json?fields=${PRODUCT_FIELDS}`;
 
   let response: Response;
 
   try {
-    response = await fetch(url, { headers: offHeaders() });
+    response = await fetch(url, { headers: offHeaders(), signal });
   } catch {
     return {
       ok: false,

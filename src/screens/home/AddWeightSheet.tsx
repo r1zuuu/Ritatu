@@ -43,6 +43,9 @@ export const AddWeightSheet = ({ visible, lastWeight, onClose, onSave }: Props) 
           />
           <Text style={s.unit}>kg</Text>
         </View>
+        {value.trim().length > 0 && !valid ? (
+          <Text style={s.hint}>Podaj wagę w zakresie 30–250 kg</Text>
+        ) : null}
         <View style={s.controls}>
           <Pressable style={({ pressed }) => [s.control, pressed && sh.pressed]} onPress={() => change(-0.1)}>
             <Icon name="minus" size={22} color={colors.text} />
@@ -65,6 +68,7 @@ export const AddWeightSheet = ({ visible, lastWeight, onClose, onSave }: Props) 
 
 const s = StyleSheet.create({
   wrap: { gap: 20, paddingBottom: 28, paddingHorizontal: 20 },
+  hint: { ...typography.label, color: colors.danger, marginTop: -12, textAlign: "center" },
   valueRow: { alignItems: "flex-end", flexDirection: "row", gap: 8, justifyContent: "center" },
   input: { ...typography.display, color: colors.text, minWidth: 150, paddingVertical: 0, textAlign: "center" },
   unit: { ...typography.section, color: colors.muted, paddingBottom: 7 },

@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Sheet } from "../../components/Sheet";
 import { parseDecimal } from "../../core/numberFormat";
+import { colors } from "../../theme/colors";
 import { sh } from "../../theme/sharedStyles";
+import { typography } from "../../theme/typography";
 import { FormField } from "./FormField";
 import type { FoodItem } from "./types";
 
@@ -43,7 +45,7 @@ export const CreateCustomSheet = ({ visible, onClose, onSave }: Props) => {
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose} title="Nowy produkt" height="88%">
+    <Sheet visible={visible} onClose={() => { reset(); onClose(); }} title="Nowy produkt" height="88%">
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <FormField label="Nazwa produktu" value={name} onChangeText={setName} />
         <FormField label="Gramatura 1 porcji (g)" value={portionWeight} onChangeText={setPortionWeight} keyboardType="decimal-pad" />
@@ -54,6 +56,9 @@ export const CreateCustomSheet = ({ visible, onClose, onSave }: Props) => {
           <FormField label="Węgle (g)" value={carbs} onChangeText={setCarbs} keyboardType="decimal-pad" compact />
           <FormField label="Tłuszcze (g)" value={fat} onChangeText={setFat} keyboardType="decimal-pad" compact />
         </View>
+        {!valid ? (
+          <Text style={s.validHint}>Podaj przynajmniej nazwę i kalorie</Text>
+        ) : null}
         <Pressable
           disabled={!valid}
           style={({ pressed }) => [sh.cta, !valid && sh.disabled, pressed && valid && sh.pressed]}
@@ -68,6 +73,7 @@ export const CreateCustomSheet = ({ visible, onClose, onSave }: Props) => {
 
 const s = StyleSheet.create({
   scroll: { gap: 16, paddingBottom: 32, paddingHorizontal: 20 },
-  hint: { color: "#888", fontSize: 11, fontWeight: "700", marginBottom: -8 },
+  hint: { color: colors.mutedMid, fontSize: 11, fontWeight: "700", marginBottom: -8 },
+  validHint: { ...typography.label, color: colors.muted, marginBottom: -8, textAlign: "center" },
   macroGrid: { flexDirection: "row", gap: 10 },
 });
