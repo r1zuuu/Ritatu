@@ -8,6 +8,7 @@ const sourceLabel: Record<MealEntry["source"], string> = {
   barcode: "Kod",
   photo: "Zdjęcie",
   manual: "Ręcznie",
+  quick: "Jednorazowo",
 };
 
 export const MealCard = ({ meal }: { meal: MealEntry }) => {

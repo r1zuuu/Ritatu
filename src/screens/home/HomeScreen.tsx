@@ -110,18 +110,17 @@ export const HomeScreen = () => {
     if (!section) return;
     const pw = food.portionWeightG ?? 100;
     const weightG = food.per100 ? amount : amount * pw;
-    const proteinPer100g = food.per100 ? food.protein : (pw > 0 ? (food.protein / pw) * 100 : 0);
-    const carbsPer100g = food.per100 ? food.carbs : (pw > 0 ? (food.carbs / pw) * 100 : 0);
-    const fatPer100g = food.per100 ? food.fat : (pw > 0 ? (food.fat / pw) * 100 : 0);
+    const toPer100 = (total: number) => (food.per100 ? total : pw > 0 ? (total / pw) * 100 : 0);
     await addMealRepo({
       userId: user.uid,
       name: food.name,
       weightG,
-      proteinPer100g,
-      carbsPer100g,
-      fatPer100g,
+      proteinPer100g: toPer100(food.protein),
+      carbsPer100g: toPer100(food.carbs),
+      fatPer100g: toPer100(food.fat),
+      kcalPer100g: toPer100(food.calories),
       timestamp: dateWithOffset(dateOffset),
-      source: food.code ? "barcode" : "manual",
+      source: food.code ? "barcode" : food.oneTime ? "quick" : "manual",
       section,
       barcode: food.code ?? null,
       photoUrl: food.imageUrl ?? null,
@@ -149,7 +148,7 @@ export const HomeScreen = () => {
     if (!user || !editingMeal) return;
     const updated = meals.map((m) =>
       m.id === editingMeal.id
-        ? { ...m, name: draft.name, weightG: draft.weightG, proteinPer100g: draft.proteinPer100g, carbsPer100g: draft.carbsPer100g, fatPer100g: draft.fatPer100g, section: draft.section ?? m.section }
+        ? { ...m, name: draft.name, weightG: draft.weightG, proteinPer100g: draft.proteinPer100g, carbsPer100g: draft.carbsPer100g, fatPer100g: draft.fatPer100g, kcalPer100g: draft.kcalPer100g ?? m.kcalPer100g, section: draft.section ?? m.section }
         : m,
     );
     await cacheMealsForDay(user.uid, dateWithOffset(dateOffset), updated);
@@ -315,6 +314,7 @@ export const HomeScreen = () => {
           proteinPer100g: editingMeal.proteinPer100g,
           carbsPer100g: editingMeal.carbsPer100g,
           fatPer100g: editingMeal.fatPer100g,
+          kcalPer100g: editingMeal.kcalPer100g,
           source: editingMeal.source,
           section: editingMeal.section,
         } : null}

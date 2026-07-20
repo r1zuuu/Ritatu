@@ -4,7 +4,7 @@ export type LocalUser = {
   displayName: string | null;
 };
 
-export type MealSource = "barcode" | "photo" | "manual";
+export type MealSource = "barcode" | "photo" | "manual" | "quick";
 export type Gender = "male" | "female";
 export type GoalType = "lose" | "maintain" | "gain";
 export type GoalPace = "slow" | "moderate" | "fast";
@@ -19,6 +19,10 @@ export type MealEntry = {
   proteinPer100g: number;
   carbsPer100g: number;
   fatPer100g: number;
+  // Authoritative energy per 100 g. When set, calories come from this (scaled
+  // by weight) instead of the 4/4/9 macro formula — so label energy and
+  // one-off "just N kcal" entries stay honest. Absent on old/derived entries.
+  kcalPer100g?: number | null;
   timestamp: Date;
   source: MealSource;
   section?: string | null;
@@ -57,6 +61,7 @@ export type MealDraft = {
   proteinPer100g: number;
   carbsPer100g: number;
   fatPer100g: number;
+  kcalPer100g?: number | null;
   source: MealSource;
   section?: string | null;
   barcode?: string | null;
