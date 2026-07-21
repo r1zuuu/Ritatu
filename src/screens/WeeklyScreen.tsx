@@ -142,22 +142,33 @@ export const WeeklyScreen = () => {
   const loggedDays  = activeDays.filter((d) => d.kcal > 0);
   const goalMetDays = goalKcal ? loggedDays.filter((d) => d.kcal >= goalKcal * GOAL_MET_RATIO) : [];
 
-  const avgKcal    = loggedDays.length ? loggedDays.reduce((s, d) => s + d.kcal, 0)     / loggedDays.length : 0;
-  const avgProtein = loggedDays.length ? loggedDays.reduce((s, d) => s + d.proteinG, 0) / loggedDays.length : 0;
-  const avgCarbs   = loggedDays.length ? loggedDays.reduce((s, d) => s + d.carbsG, 0)   / loggedDays.length : 0;
-  const avgFat     = loggedDays.length ? loggedDays.reduce((s, d) => s + d.fatG, 0)     / loggedDays.length : 0;
+  // Today is still in progress, so counting it as a full day drags every average
+  // down. Averages and insights use completed days only; totals, the chart, the
+  // dots and the streak still include today, because those describe status
+  // rather than a typical day.
+  const completedDays = loggedDays.filter((d) => !d.isToday);
+
+  const averageOf = (pick: (day: DayData) => number) =>
+    completedDays.length
+      ? completedDays.reduce((sum, day) => sum + pick(day), 0) / completedDays.length
+      : 0;
+
+  const avgKcal    = averageOf((d) => d.kcal);
+  const avgProtein = averageOf((d) => d.proteinG);
+  const avgCarbs   = averageOf((d) => d.carbsG);
+  const avgFat     = averageOf((d) => d.fatG);
   const totalKcal  = loggedDays.reduce((s, d) => s + d.kcal, 0);
 
   type Insight = { macro: string; color: string; pct: number };
   const insights: Insight[] = [];
-  if (loggedDays.length > 0) {
+  if (completedDays.length > 0) {
     if (goalKcal    && avgKcal    / goalKcal    < 0.8) insights.push({ macro: "kalorii",        color: colors.kcal,    pct: Math.round((avgKcal    / goalKcal)    * 100) });
     if (goalProtein && avgProtein / goalProtein < 0.8) insights.push({ macro: "białka",         color: colors.protein, pct: Math.round((avgProtein / goalProtein) * 100) });
     if (goalCarbs   && avgCarbs   / goalCarbs   < 0.8) insights.push({ macro: "węglowodanów",   color: colors.carbs,   pct: Math.round((avgCarbs   / goalCarbs)   * 100) });
     if (goalFat     && avgFat     / goalFat     < 0.8) insights.push({ macro: "tłuszczów",      color: colors.fat,     pct: Math.round((avgFat     / goalFat)     * 100) });
   }
-  const activeDayCount = activeDays.length;
-  const dniLabel = activeDayCount === 1 ? "dzień" : "dni";
+  const completedDayCount = completedDays.length;
+  const dniLabel = completedDayCount === 1 ? "dzień" : "dni";
 
   const streak = (() => {
     let count = 0;
@@ -254,7 +265,15 @@ export const WeeklyScreen = () => {
             ) : (
               <>
                 {/* ── Średnia dzienna ─────────────────── */}
-                {goalKcal ? (
+                {completedDays.length === 0 ? (
+                  <View style={s.empty}>
+                    <Text style={s.emptyText}>
+                      Średnia pojawi się po pierwszym zakończonym dniu.
+                    </Text>
+                  </View>
+                ) : null}
+
+                {goalKcal && completedDays.length > 0 ? (
                   <Animated.View entering={FadeInDown.delay(80).duration(420)}>
                     <Card style={s.card}>
                       <Text style={s.cardEyebrow}>Średnia dzienna</Text>
@@ -270,12 +289,15 @@ export const WeeklyScreen = () => {
                         delay={220}
                         track={colors.surfaceAlt}
                       />
+                      <Text style={s.chartGoalNote}>
+                        z {completedDayCount} zakończonych {dniLabel}, bez dzisiaj
+                      </Text>
                     </Card>
                   </Animated.View>
                 ) : null}
 
                 {/* ── Makra ───────────────────────────── */}
-                {(goalProtein || goalCarbs || goalFat) ? (
+                {(goalProtein || goalCarbs || goalFat) && completedDays.length > 0 ? (
                   <Animated.View entering={FadeInDown.delay(140).duration(420)}>
                     <Card style={s.card}>
                       <Text style={s.cardEyebrow}>Makra — średnio dziennie</Text>
@@ -299,7 +321,7 @@ export const WeeklyScreen = () => {
                             <View style={[s.insightBar, { backgroundColor: item.color }]} />
                             <Text style={s.insightText}>
                               Przez ostatnie{" "}
-                              <Text style={s.insightBold}>{activeDayCount} {dniLabel}</Text>
+                              <Text style={s.insightBold}>{completedDayCount} {dniLabel}</Text>
                               {" "}brakowało Ci {item.macro} — osiągałeś tylko{" "}
                               <Text style={[s.insightBold, { color: item.color }]}>{item.pct}%</Text>
                               {" "}celu
