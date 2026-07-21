@@ -21,6 +21,10 @@ const activityMultiplier: Record<ActivityLevel, number> = {
   active: 1.725,
 };
 
+// A day counts as hitting its goal at 90% of target calories. Shared so the
+// weekly view and the CSV export cannot drift apart.
+export const GOAL_MET_RATIO = 0.9;
+
 export const round = (value: number, places = 0) => {
   const factor = 10 ** places;
   return Math.round(value * factor) / factor;

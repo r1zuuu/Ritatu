@@ -98,11 +98,17 @@ export const seedDemoData = async (uid: string, profile: UserProfile | null): Pr
     entries.push([mealKey, JSON.stringify(meals)]);
   }
 
+  // Spread back from the seed date so the demo chart spans a few weeks.
+  const weightAgo = (daysAgo: number) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - daysAgo);
+    return toDateKey(d);
+  };
   const weights: WeightEntry[] = [
-    { id: "w1", date: "01.05", weightKg: 84.2 },
-    { id: "w2", date: "08.05", weightKg: 83.5 },
-    { id: "w3", date: "15.05", weightKg: 82.9 },
-    { id: "w4", date: "24.05", weightKg: profile?.weightKg ?? 82.4 },
+    { id: "w1", date: weightAgo(23), weightKg: 84.2 },
+    { id: "w2", date: weightAgo(16), weightKg: 83.5 },
+    { id: "w3", date: weightAgo(9), weightKg: 82.9 },
+    { id: "w4", date: weightAgo(0), weightKg: profile?.weightKg ?? 82.4 },
   ];
 
   entries.push([WEIGHTS_KEY, JSON.stringify(weights)]);

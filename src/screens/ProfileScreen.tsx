@@ -16,7 +16,7 @@ import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
 import type { IconName } from "../components/Icon";
 import { Screen } from "../components/Screen";
-import { exportMealsCsv } from "../data/csvExport";
+import { exportDaysCsv, exportMealsCsv } from "../data/csvExport";
 import {
   CUSTOM_PRODUCTS_KEY,
   getDeveloperSettings,
@@ -113,10 +113,10 @@ export const ProfileScreen = () => {
     }
   };
 
-  const exportCsv = async () => {
+  const runExport = async (exporter: (uid: string) => Promise<"shared" | "unavailable">) => {
     if (!user) { setMessage("Błąd: brak użytkownika."); return; }
     try {
-      const result = await exportMealsCsv(user.uid);
+      const result = await exporter(user.uid);
       setMessage(result === "shared" ? "Wyeksportowano." : "Błąd: udostępnianie niedostępne na tej platformie.");
     } catch (e) {
       setMessage(`Błąd: ${e instanceof Error ? e.message : String(e)}`);
@@ -154,7 +154,8 @@ export const ProfileScreen = () => {
           <Card style={s.toolList}>
             <ToolRow icon="sparkles" label="Seed danych demo" onPress={() => void seed()} first />
             <ToolRow icon="reset" label="Reset onboardingu" onPress={() => void resetOnboarding()} />
-            <ToolRow icon="upload" label="Eksportuj posiłki CSV" onPress={() => void exportCsv()} />
+            <ToolRow icon="upload" label="Eksportuj posiłki CSV" onPress={() => void runExport(exportMealsCsv)} />
+            <ToolRow icon="upload" label="Eksportuj dni CSV" onPress={() => void runExport(exportDaysCsv)} />
             <ToolRow
               icon="trash"
               label="Wyczyść dane lokalne"

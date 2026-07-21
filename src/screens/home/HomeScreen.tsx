@@ -4,12 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MacroConfirmSheet } from "../../components/MacroConfirmSheet";
-import { dateWithOffset } from "../../core/date";
+import { dateWithOffset, toDateKey } from "../../core/date";
 import type { Section } from "../../core/section";
 import { addMeal as addMealRepo, cacheMealsForDay, getCachedMealsForDay } from "../../data/mealRepository";
 import { deleteProgressPhoto, getProgressPhotos, saveProgressPhotos } from "../../data/progressPhotoRepository";
 import type { MealDraft, MealEntry, ProgressPhoto, WeightEntry } from "../../data/types";
-import { CUSTOM_PRODUCTS_KEY, WEIGHTS_KEY } from "../../data/developerRepository";
+import { CUSTOM_PRODUCTS_KEY } from "../../data/developerRepository";
+import { getWeights, saveWeights as persistWeights } from "../../data/weightRepository";
 import { useAuth } from "../../providers/AuthProvider";
 import { useUserProfile } from "../../providers/UserProfileProvider";
 import { colors } from "../../theme/colors";
@@ -85,9 +86,7 @@ export const HomeScreen = () => {
   );
 
   useEffect(() => {
-    void AsyncStorage.getItem(WEIGHTS_KEY).then((value) => {
-      if (value) { try { setWeights(JSON.parse(value) as WeightEntry[]); } catch {} }
-    });
+    void getWeights().then(setWeights);
     void getProgressPhotos().then(setProgressPhotos);
     void AsyncStorage.getItem(CUSTOM_PRODUCTS_KEY).then((value) => {
       if (value) { try { setCustomProducts(JSON.parse(value) as FoodItem[]); } catch {} }
@@ -95,7 +94,7 @@ export const HomeScreen = () => {
   }, []);
 
   const saveWeights = useCallback(async (next: WeightEntry[]) => {
-    await AsyncStorage.setItem(WEIGHTS_KEY, JSON.stringify(next));
+    await persistWeights(next);
     setWeights(next);
   }, []);
 
@@ -168,7 +167,7 @@ export const HomeScreen = () => {
     const now = new Date();
     const entry: WeightEntry = {
       id: Date.now().toString(36),
-      date: `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}`,
+      date: toDateKey(now),
       weightKg: kg,
     };
     await saveWeights([...weights, entry]);

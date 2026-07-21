@@ -95,7 +95,7 @@ function WeightTrendChart({ data }: { data: WeightEntry[] }) {
           numberOfLines={1}
           style={[trend.axisLabel, { left: Math.max(0, Math.min(chartWidth - 58, point.x - 29)), top: chartHeight - 18 }]}
         >
-          {point.item.date}
+          {formatDDMM(new Date(`${point.item.date}T00:00`))}
         </Text>
       ))}
     </View>

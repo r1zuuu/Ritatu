@@ -13,7 +13,7 @@ import { AnimatedBar } from "../components/AnimatedBar";
 import { Card } from "../components/Card";
 import { Screen } from "../components/Screen";
 import { Icon } from "../components/Icon";
-import { summarizeMeals, round } from "../core/macroCalculator";
+import { GOAL_MET_RATIO, summarizeMeals, round } from "../core/macroCalculator";
 import { toDateKey } from "../core/date";
 import { getMealsForDay } from "../data/mealRepository";
 import { useAuth } from "../providers/AuthProvider";
@@ -140,7 +140,7 @@ export const WeeklyScreen = () => {
   const weekDays    = getWeekDays(today);
   const activeDays  = days.filter((d) => !d.isFuture);
   const loggedDays  = activeDays.filter((d) => d.kcal > 0);
-  const goalMetDays = goalKcal ? loggedDays.filter((d) => d.kcal >= goalKcal * 0.9) : [];
+  const goalMetDays = goalKcal ? loggedDays.filter((d) => d.kcal >= goalKcal * GOAL_MET_RATIO) : [];
 
   const avgKcal    = loggedDays.length ? loggedDays.reduce((s, d) => s + d.kcal, 0)     / loggedDays.length : 0;
   const avgProtein = loggedDays.length ? loggedDays.reduce((s, d) => s + d.proteinG, 0) / loggedDays.length : 0;
@@ -198,7 +198,7 @@ export const WeeklyScreen = () => {
                 <View style={s.chartCols}>
                   {days.map((day, i) => {
                     const pct = day.kcal > 0 ? Math.min(day.kcal / maxVal, 1) : 0;
-                    const met = !day.isFuture && goalKcal !== null && day.kcal >= goalKcal * 0.9;
+                    const met = !day.isFuture && goalKcal !== null && day.kcal >= goalKcal * GOAL_MET_RATIO;
                     const hasData = !day.isFuture && day.kcal > 0;
                     const barColor = day.isToday ? colors.accent : met ? colors.green : colors.mutedMid;
                     return (
@@ -227,7 +227,7 @@ export const WeeklyScreen = () => {
                 </Text>
                 <View style={s.dots}>
                   {days.map((d) => {
-                    const met = !d.isFuture && goalKcal !== null && d.kcal >= goalKcal * 0.9;
+                    const met = !d.isFuture && goalKcal !== null && d.kcal >= goalKcal * GOAL_MET_RATIO;
                     const hasAny = !d.isFuture && d.kcal > 0;
                     return (
                       <View
