@@ -34,6 +34,8 @@ export type MealEntry = {
 
 export type WeightEntry = {
   id: string;
+  // ISO "YYYY-MM-DD". Older entries stored a pre-formatted "DD.MM" with no year;
+  // weightRepository migrates those on read.
   date: string;
   weightKg: number;
 };
