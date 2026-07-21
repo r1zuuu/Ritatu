@@ -4,7 +4,7 @@ import type { MealEntry } from "./types";
 
 const cacheKey = (uid: string, date: Date) => `ritatu:meals:${uid}:${toDateKey(date)}`;
 
-const parseMeals = (val: string | null): MealEntry[] => {
+export const parseMeals = (val: string | null): MealEntry[] => {
   if (!val) return [];
   try {
     const parsed = JSON.parse(val) as Array<Omit<MealEntry, "timestamp"> & { timestamp: string }>;

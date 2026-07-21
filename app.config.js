@@ -7,7 +7,7 @@ module.exports = {
     icon: "./assets/icon.png",
     scheme: ["ritatu", "com.ritatu.app"],
     userInterfaceStyle: "dark",
-    plugins: ["expo-router", "expo-font", "expo-updates"],
+    plugins: ["expo-router", "expo-font", "expo-updates", "expo-sharing"],
     updates: {
       url: "https://u.expo.dev/17100aa9-d04f-433e-9ff8-e1f2d85ec48e",
       checkAutomatically: "ON_LOAD",

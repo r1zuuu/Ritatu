@@ -33,19 +33,6 @@ export const saveDeveloperSettings = async (settings: DeveloperSettings): Promis
   await AsyncStorage.setItem(DEV_SETTINGS_KEY, JSON.stringify(settings));
 };
 
-export const exportLocalData = async (): Promise<string> => {
-  const keys = await AsyncStorage.getAllKeys();
-  const ritatuKeys = keys.filter((key) => key.startsWith("ritatu:"));
-  const entries = await AsyncStorage.multiGet(ritatuKeys);
-  return JSON.stringify(Object.fromEntries(entries), null, 2);
-};
-
-export const clearLocalAppData = async (): Promise<void> => {
-  const keys = await AsyncStorage.getAllKeys();
-  const ritatuKeys = keys.filter((key) => key.startsWith("ritatu:") && key !== "ritatu:auth:loggedIn");
-  if (ritatuKeys.length > 0) await AsyncStorage.multiRemove(ritatuKeys);
-};
-
 const DAY_TEMPLATES: Array<Array<{ name: string; weightG: number; proteinPer100g: number; carbsPer100g: number; fatPer100g: number; section: string }>> = [
   [
     { name: "Owsianka z bananem", weightG: 300, proteinPer100g: 5.2, carbsPer100g: 18.4, fatPer100g: 2.1, section: "Śniadanie" },

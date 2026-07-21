@@ -16,9 +16,9 @@ import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
 import type { IconName } from "../components/Icon";
 import { Screen } from "../components/Screen";
+import { exportMealsCsv } from "../data/csvExport";
 import {
   CUSTOM_PRODUCTS_KEY,
-  exportLocalData,
   getDeveloperSettings,
   seedDemoData,
   WEIGHTS_KEY,
@@ -36,7 +36,6 @@ export const ProfileScreen = () => {
   const { profile, saveProfile } = useUserProfile();
   const insets = useSafeAreaInsets();
   const [settings, setSettings] = useState<DeveloperSettings | null>(null);
-  const [exportJson, setExportJson] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
   const [kcal, setKcal] = useState("");
@@ -114,6 +113,16 @@ export const ProfileScreen = () => {
     }
   };
 
+  const exportCsv = async () => {
+    if (!user) { setMessage("Błąd: brak użytkownika."); return; }
+    try {
+      const result = await exportMealsCsv(user.uid);
+      setMessage(result === "shared" ? "Wyeksportowano." : "Błąd: udostępnianie niedostępne na tej platformie.");
+    } catch (e) {
+      setMessage(`Błąd: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   return (
     <Screen padded={false}>
       <ScrollView
@@ -145,11 +154,7 @@ export const ProfileScreen = () => {
           <Card style={s.toolList}>
             <ToolRow icon="sparkles" label="Seed danych demo" onPress={() => void seed()} first />
             <ToolRow icon="reset" label="Reset onboardingu" onPress={() => void resetOnboarding()} />
-            <ToolRow
-              icon="upload"
-              label="Eksportuj dane JSON"
-              onPress={async () => setExportJson(await exportLocalData())}
-            />
+            <ToolRow icon="upload" label="Eksportuj posiłki CSV" onPress={() => void exportCsv()} />
             <ToolRow
               icon="trash"
               label="Wyczyść dane lokalne"
@@ -167,15 +172,6 @@ export const ProfileScreen = () => {
           <Text style={s.meta}>
             Ostatni seed: {settings.seededDemoDataAt.toLocaleString("pl-PL")}
           </Text>
-        ) : null}
-
-        {exportJson ? (
-          <TextInput
-            style={s.exportBox}
-            value={exportJson}
-            multiline
-            editable={false}
-          />
         ) : null}
       </ScrollView>
     </Screen>
@@ -330,17 +326,4 @@ const s = StyleSheet.create({
   /* Misc */
   message: { ...typography.label, color: colors.green, marginTop: 12, textAlign: "center" },
   meta: { ...typography.label, color: colors.muted, marginTop: 10 },
-  exportBox: {
-    ...typography.label,
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderRadius: 14,
-    borderWidth: 1,
-    color: colors.mutedMid,
-    marginTop: 12,
-    maxHeight: 220,
-    minHeight: 140,
-    padding: 12,
-    textAlignVertical: "top",
-  },
 });
