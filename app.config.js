@@ -2,7 +2,7 @@ module.exports = {
   expo: {
     name: "Ritatu",
     slug: "ritatu",
-    version: "1.0.0",
+    version: "1.1.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
     scheme: ["ritatu", "com.ritatu.app"],
