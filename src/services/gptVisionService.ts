@@ -21,7 +21,7 @@ type OpenAiResponse = {
 };
 
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
-const DEFAULT_OPENAI_MODEL = "gpt-4o";
+const DEFAULT_OPENAI_MODEL = "gpt-5.6-luna";
 const MAX_TOKENS = 2000;
 const IMAGE_DETAIL = "high";
 
