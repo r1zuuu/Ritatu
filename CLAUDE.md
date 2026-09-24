@@ -83,6 +83,8 @@ Local results (custom products + `FOOD_DB`) always come first; Open Food Facts r
 - `src/theme/typography.ts` — Inter for all UI text (`display`, `title`, `headline`, `section`, `body`, `caption`, `label`, `micro` ≥ 11 px); Barlow Light only for short uppercase eyebrows (`stat`)
 - `src/theme/layout.ts` — `radius` (incl. `control: 14`), `space`, `shadow`
 - One control per job: `Button`, `FormField`, `SegmentedControl`, `Sheet` (use `height="fit"` for content-sized sheets), `Toast` (`useToast()`, optional undo action)
+- Charts: `react-native-gifted-charts` on `react-native-svg` (`src/screens/home/WeightChart.tsx`, trend from `src/core/weightTrend.ts`); the diary calorie ring is plain SVG animated with reanimated `useAnimatedProps`
+- Meal photos are scaled to 1280 px with `expo-image-manipulator` before they are sent to the model
 - All styles via `StyleSheet.create({})`; animate transforms/opacity only
 
 ### Screen padding convention
