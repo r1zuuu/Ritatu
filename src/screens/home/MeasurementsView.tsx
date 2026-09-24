@@ -332,9 +332,9 @@ const s = StyleSheet.create({
 const trend = StyleSheet.create({
   wrap: { alignSelf: "center", overflow: "hidden", position: "relative" },
   gridLine: { backgroundColor: colors.border, height: 1, opacity: 0.85, position: "absolute" },
-  yLabel: { ...typography.micro, color: colors.muted, fontSize: 10, left: 0, position: "absolute", width: 30 },
+  yLabel: { ...typography.micro, color: colors.muted, left: 0, position: "absolute", width: 30 },
   segment: { backgroundColor: colors.accent, borderRadius: 999, height: 3, opacity: 0.92, position: "absolute" },
   dot: { backgroundColor: colors.card, borderColor: colors.accent, borderRadius: 999, borderWidth: 2, height: 8, position: "absolute", width: 8 },
   dotLast: { backgroundColor: colors.accent, height: 12, width: 12 },
-  axisLabel: { ...typography.micro, color: colors.mutedMid, fontSize: 10, position: "absolute", textAlign: "center", width: 58 },
+  axisLabel: { ...typography.micro, color: colors.mutedMid, position: "absolute", textAlign: "center", width: 58 },
 });

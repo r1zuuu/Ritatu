@@ -369,7 +369,7 @@ const s = StyleSheet.create({
   chartCols: { flexDirection: "row", gap: 6 },
   col: { alignItems: "center", flex: 1, gap: 6 },
   colPressed: { opacity: 0.6 },
-  barValue: { ...typography.micro, color: colors.mutedMid, fontSize: 10, fontVariant: ["tabular-nums"], height: 14 },
+  barValue: { ...typography.micro, color: colors.mutedMid, fontVariant: ["tabular-nums"], height: 14 },
   barTrack: {
     backgroundColor: colors.surfaceAlt,
     borderRadius: 6,
