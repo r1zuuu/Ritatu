@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, TextIn
 import { Sheet } from "../../components/Sheet";
 import { Icon } from "../../components/Icon";
 import { dateWithOffset } from "../../core/date";
+import { countMatches, matchScore, normalize, tokenize } from "../../core/search";
 import { getCachedMealsForDay } from "../../data/mealRepository";
 import { searchProductsByName, type OpenFoodFactsSearchItem } from "../../services/openFoodFactsService";
 import { colors } from "../../theme/colors";
@@ -69,33 +70,36 @@ export const AddFoodSheet = ({
 }: Props) => {
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"search" | "recent" | "custom">("search");
-  const [remoteFoods, setRemoteFoods] = useState<FoodItem[]>([]);
+  // Tagged with the query they answer, so results for "pie" never show under "pierś".
+  const [remote, setRemote] = useState<{ query: string; items: FoodItem[] }>({ query: "", items: [] });
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [recentFoods, setRecentFoods] = useState<FoodItem[]>([]);
 
+  const trimmed = query.trim();
+  const tokens = useMemo(() => tokenize(query), [query]);
+
   useEffect(() => {
-    const trimmed = query.trim();
     if (activeTab !== "search" || trimmed.length < 3) {
-      setRemoteFoods([]);
       setSearchError(null);
       setSearching(false);
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
     setSearching(true);
     setSearchError(null);
 
     const handle = setTimeout(() => {
-      searchProductsByName(trimmed)
-        .then((items) => { if (!cancelled) setRemoteFoods(items.map(offItemToFoodItem)); })
-        .catch(() => { if (!cancelled) { setRemoteFoods([]); setSearchError("Nie udało się pobrać produktów z Open Food Facts."); } })
-        .finally(() => { if (!cancelled) setSearching(false); });
+      searchProductsByName(trimmed, controller.signal)
+        .then((items) => setRemote({ query: trimmed, items: items.map(offItemToFoodItem) }))
+        .catch(() => { if (!controller.signal.aborted) setSearchError("Nie udało się pobrać produktów z Open Food Facts."); })
+        .finally(() => { if (!controller.signal.aborted) setSearching(false); });
     }, 500);
 
-    return () => { cancelled = true; clearTimeout(handle); };
-  }, [activeTab, query]);
+    // A newer query aborts the older request instead of letting it finish.
+    return () => { clearTimeout(handle); controller.abort(); };
+  }, [activeTab, trimmed]);
 
   useEffect(() => {
     if (activeTab !== "recent") return;
@@ -131,25 +135,29 @@ export const AddFoodSheet = ({
   }, [activeTab, uid]);
 
   const listData = useMemo(() => {
-    if (activeTab === "search") {
-      const trimmed = query.trim().toLowerCase();
-      if (trimmed.length < 1) return FOOD_DB;
-      const localMatches = FOOD_DB.filter((f) => f.name.toLowerCase().includes(trimmed));
-      if (trimmed.length < 3 || remoteFoods.length === 0) return localMatches;
-      const localNames = new Set(localMatches.map((f) => f.name.toLowerCase()));
-      const onlyRemote = remoteFoods.filter((f) => !localNames.has(f.name.toLowerCase()));
-      const merged = [...localMatches, ...onlyRemote];
-      const score = (name: string, isLocal: boolean) => {
-        const n = name.toLowerCase();
-        const base = n === trimmed ? 30 : n.startsWith(trimmed) ? 20 : 10;
-        return base + (isLocal ? 1 : 0);
-      };
-      return merged.sort((a, b) => score(b.name, typeof b.id === "number") - score(a.name, typeof a.id === "number"));
-    }
-    if (activeTab === "recent") return recentFoods;
-    if (activeTab === "custom") return customProducts;
-    return [];
-  }, [activeTab, customProducts, query, remoteFoods, recentFoods]);
+    const source =
+      activeTab === "search" ? [...customProducts, ...FOOD_DB]
+      : activeTab === "recent" ? recentFoods
+      : customProducts;
+    if (tokens.length === 0) return activeTab === "search" ? FOOD_DB : source;
+
+    const local = source
+      .map((food) => ({ food, score: matchScore(food.name, tokens) }))
+      .filter((m) => m.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((m) => m.food);
+    if (activeTab !== "search" || remote.query !== trimmed) return local;
+
+    // Local results always stay on top: remote ones are only appended below,
+    // ranked by how many query words their name contains (OFF ORs the words).
+    const localNames = new Set(local.map((f) => normalize(f.name)));
+    const extra = remote.items
+      .filter((f) => !localNames.has(normalize(f.name)))
+      .map((food, index) => ({ food, index, hits: countMatches(food.name, tokens) }))
+      .sort((a, b) => b.hits - a.hits || a.index - b.index)
+      .map((m) => m.food);
+    return [...local, ...extra];
+  }, [activeTab, customProducts, recentFoods, remote, tokens, trimmed]);
 
   const tabs = [
     { id: "search" as const, label: "Szukaj" },
@@ -213,6 +221,8 @@ export const AddFoodSheet = ({
 
         <FlatList
           data={listData}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           keyExtractor={(item) => String(item.id)}
           style={s.list}
           contentContainerStyle={s.listContent}

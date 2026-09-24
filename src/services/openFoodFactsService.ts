@@ -111,32 +111,60 @@ const productToSearchItem = (
   };
 };
 
+// `q` is Lucene syntax; a stray quote or colon from the user must not change
+// the query's meaning.
+const LUCENE_SPECIAL = /[+\-!(){}[\]^"~*?:\\/&|]/g;
+const SEARCH_TIMEOUT_MS = 8_000;
+
+const fetchHits = async (q: string, signal: AbortSignal) => {
+  // Omit langs: the server default full-text search surfaces Polish products fine; langs=pl alone returns almost nothing
+  const url = `${OFF_SEARCH_URL}?q=${encodeURIComponent(q)}&page_size=20&fields=${SEARCH_FIELDS}`;
+  const response = await fetch(url, { headers: offHeaders(), signal });
+  if (!response.ok) throw new Error(`OFF search failed: HTTP ${response.status}`);
+  return ((await response.json()) as OpenFoodFactsSearchResponse).hits ?? [];
+};
+
 export const searchProductsByName = async (
   query: string,
+  signal?: AbortSignal,
 ): Promise<OpenFoodFactsSearchItem[]> => {
-  const trimmed = query.trim();
-  if (trimmed.length < 2) return [];
+  const terms = query.replace(LUCENE_SPECIAL, " ").trim();
+  if (terms.length < 2) return [];
 
   // OFF search doesn't send CORS headers — browser blocks it; skip on web entirely
   if (Platform.OS === "web") return [];
 
-  // Omit langs: the server default full-text search surfaces Polish products fine; langs=pl alone returns almost nothing
-  const url =
-    `${OFF_SEARCH_URL}` +
-    `?q=${encodeURIComponent(trimmed)}` +
-    `&page_size=20` +
-    `&fields=${SEARCH_FIELDS}`;
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener("abort", abort);
+  const timeout = setTimeout(abort, SEARCH_TIMEOUT_MS);
 
-  // Let network/5xx failures reject so the UI shows an error instead of a false "no results"
-  const response = await fetch(url, { headers: offHeaders() });
-  if (!response.ok) {
-    throw new Error(`OFF search failed: HTTP ${response.status}`);
+  try {
+    // search-a-licious has no country boost, so Polish products come from a
+    // second, filtered request and go first. Without it "twaróg półtłusty"
+    // returns Irish salads.
+    const [pl, world] = await Promise.allSettled([
+      fetchHits(`${terms} countries_tags:"en:poland"`, controller.signal),
+      fetchHits(terms, controller.signal),
+    ]);
+    // Let network/5xx failures reject so the UI shows an error instead of a false "no results"
+    if (pl.status === "rejected" && world.status === "rejected") throw pl.reason;
+
+    const seen = new Set<string>();
+    return [
+      ...(pl.status === "fulfilled" ? pl.value : []),
+      ...(world.status === "fulfilled" ? world.value : []),
+    ]
+      .map(productToSearchItem)
+      .filter((item): item is OpenFoodFactsSearchItem => {
+        if (!item || seen.has(item.code)) return false;
+        seen.add(item.code);
+        return true;
+      });
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
   }
-
-  const data = (await response.json()) as OpenFoodFactsSearchResponse;
-  return (data.hits ?? [])
-    .map(productToSearchItem)
-    .filter((item): item is OpenFoodFactsSearchItem => item !== null);
 };
 
 export const lookupProductByBarcode = async (
@@ -204,6 +232,8 @@ export const lookupProductByBarcode = async (
       proteinPer100g: protein,
       carbsPer100g: carbs,
       fatPer100g: fat,
+      // Label energy, so a scanned product shows the same kcal as when searched.
+      kcalPer100g: resolveKcal(nutriments),
       source: "barcode",
       barcode: product.code ?? data.code ?? barcode,
       photoUrl: product.image_front_url ?? null,
