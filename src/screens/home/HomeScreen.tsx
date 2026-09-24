@@ -60,6 +60,13 @@ export const HomeScreen = () => {
     }, [selectedKey, refreshKey, user]),
   );
 
+  // The last section stays in the sheet titles while they animate closed,
+  // instead of flashing "Dodaj do " with an empty name.
+  const [sheetSection, setSheetSection] = useState<Section>(getSectionByTime());
+  useEffect(() => {
+    if (addFoodSection) setSheetSection(addFoodSection);
+  }, [addFoodSection]);
+
   useEffect(() => {
     void AsyncStorage.getItem(CUSTOM_PRODUCTS_KEY).then((value) => {
       if (value) { try { setCustomProducts(JSON.parse(value) as FoodItem[]); } catch {} }
@@ -166,11 +173,12 @@ export const HomeScreen = () => {
 
       <AddFoodSheet
         visible={addFoodSection !== null}
-        section={addFoodSection ?? ""}
-        uid={user?.uid ?? ""}
+        section={sheetSection}
+        uid={user.uid}
         customProducts={customProducts}
         onClose={() => setAddFoodSection(null)}
         onSelectFood={setSelectedFood}
+        onDeleteCustom={(item) => void saveCustomProducts(customProducts.filter((p) => p.id !== item.id))}
         onOpenCreateCustom={() => setShowCreateCustom(true)}
         onQuickAdd={() => {
           setQuickAddSection(addFoodSection);
@@ -192,7 +200,7 @@ export const HomeScreen = () => {
       <FoodDetailSheet
         visible={selectedFood !== null}
         food={selectedFood}
-        section={addFoodSection ?? ""}
+        section={sheetSection}
         lastAmounts={lastAmountsRef.current}
         onClose={() => setSelectedFood(null)}
         onAdd={handleAddConfirm}
@@ -204,6 +212,8 @@ export const HomeScreen = () => {
         onSave={async (product) => {
           await saveCustomProducts([product, ...customProducts]);
           setShowCreateCustom(false);
+          // Straight to the amount picker: the product was made to be logged.
+          setSelectedFood(product);
         }}
       />
 

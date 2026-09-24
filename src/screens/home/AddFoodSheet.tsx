@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { Sheet } from "../../components/Sheet";
+import { ActivityIndicator, Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Button } from "../../components/Button";
 import { Icon, type IconName } from "../../components/Icon";
+import { SegmentedControl } from "../../components/SegmentedControl";
+import { Sheet } from "../../components/Sheet";
 import { dateWithOffset } from "../../core/date";
 import { countMatches, matchScore, normalize, tokenize } from "../../core/search";
+import { isSection, SECTION_GENITIVE } from "../../core/section";
 import { getCachedMealsForDay } from "../../data/mealRepository";
 import { searchProductsByName, type OpenFoodFactsSearchItem } from "../../services/openFoodFactsService";
 import { colors } from "../../theme/colors";
-import { typography } from "../../theme/typography";
+import { radius } from "../../theme/layout";
+import { fontFamilies, typography } from "../../theme/typography";
 import { sh } from "../../theme/sharedStyles";
 import { FOOD_DB } from "./foodDb";
 import type { FoodItem } from "./types";
@@ -35,11 +39,20 @@ function ActionTile({ icon, label, onPress }: { icon: IconName; label: string; o
       style={({ pressed }) => [s.quickTile, pressed && sh.pressed]}
       onPress={onPress}
     >
-      <Icon name={icon} size={18} color={colors.accent} />
+      <Icon name={icon} size={20} color={colors.accent} />
       <Text style={s.quickLabel}>{label}</Text>
     </Pressable>
   );
 }
+
+const TABS = [
+  { value: "search" as const, label: "Szukaj" },
+  { value: "recent" as const, label: "Ostatnie" },
+  { value: "custom" as const, label: "Własne" },
+];
+
+// Always say what the kcal is per: "250 kcal" next to "500 g" read as the pack.
+const kcalLabel = (item: FoodItem) => `${item.calories} kcal ${item.per100 ? "/ 100 g" : "/ porcja"}`;
 
 type Props = {
   visible: boolean;
@@ -48,6 +61,7 @@ type Props = {
   customProducts: FoodItem[];
   onClose: () => void;
   onSelectFood: (food: FoodItem) => void;
+  onDeleteCustom: (food: FoodItem) => void;
   onOpenCreateCustom: () => void;
   onQuickAdd: () => void;
   onScanBarcode: () => void;
@@ -61,6 +75,7 @@ export const AddFoodSheet = ({
   customProducts,
   onClose,
   onSelectFood,
+  onDeleteCustom,
   onOpenCreateCustom,
   onQuickAdd,
   onScanBarcode,
@@ -73,6 +88,13 @@ export const AddFoodSheet = ({
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [recentFoods, setRecentFoods] = useState<FoodItem[]>([]);
+
+  // Each opening starts clean: the sheet stays mounted between sections.
+  useEffect(() => {
+    if (!visible) return;
+    setQuery("");
+    setActiveTab("search");
+  }, [visible]);
 
   const trimmed = query.trim();
   const tokens = useMemo(() => tokenize(query), [query]);
@@ -112,7 +134,7 @@ export const AddFoodSheet = ({
             seen.set(key, {
               id: `recent:${key}`,
               name: m.name,
-              detail: "100 g",
+              detail: "Ostatnio dodane",
               calories: Math.round(
                 Number.isFinite(m.kcalPer100g as number)
                   ? (m.kcalPer100g as number)
@@ -157,34 +179,72 @@ export const AddFoodSheet = ({
     return [...local, ...extra];
   }, [activeTab, customProducts, recentFoods, remote, tokens, trimmed]);
 
-  const tabs = [
-    { id: "search" as const, label: "Szukaj" },
-    { id: "recent" as const, label: "Ostatnie" },
-    { id: "custom" as const, label: "Własne" },
-  ];
+  const title = isSection(section) ? `Dodaj do ${SECTION_GENITIVE[section]}` : "Dodaj posiłek";
+  const needsMoreChars = activeTab === "search" && trimmed.length > 0 && trimmed.length < 3;
+
+  const confirmDelete = (item: FoodItem) =>
+    Alert.alert("Usunąć produkt?", `„${item.name}” zniknie z listy własnych produktów.`, [
+      { text: "Anuluj", style: "cancel" },
+      { text: "Usuń", style: "destructive", onPress: () => onDeleteCustom(item) },
+    ]);
+
+  // No results is not a dead end: offer the other ways to log the meal.
+  const emptyState =
+    activeTab === "search" && tokens.length > 0 ? (
+      <View style={s.empty}>
+        <Text style={s.emptyTitle}>Nie znalazłem „{trimmed}”</Text>
+        <Text style={s.emptyText}>Zeskanuj kod z opakowania albo dodaj posiłek inaczej.</Text>
+        <View style={s.emptyActions}>
+          <Button title="Skanuj kod" icon="barcode" variant="secondary" onPress={onScanBarcode} />
+          <Button title="Szybkie kcal" icon="flame" variant="secondary" onPress={onQuickAdd} />
+          <Button
+            title="Stwórz własny produkt"
+            icon="plus"
+            variant="ghost"
+            onPress={() => { setActiveTab("custom"); onOpenCreateCustom(); }}
+          />
+        </View>
+      </View>
+    ) : (
+      <View style={s.empty}>
+        <Icon name={activeTab === "custom" ? "clipboard" : "search"} size={28} color={colors.muted} />
+        <Text style={s.emptyText}>
+          {activeTab === "custom"
+            ? "Brak własnych produktów. Stwórz taki, który jesz często, np. swoją owsiankę."
+            : activeTab === "recent"
+              ? "Tu pojawią się produkty dodane w ostatnich 7 dniach."
+              : "Brak wyników"}
+        </Text>
+      </View>
+    );
 
   return (
-    <Sheet visible={visible} onClose={onClose} title={`Dodaj do: ${section}`} height="92%">
+    <Sheet visible={visible} onClose={onClose} title={title} height="92%">
       <View style={s.wrap}>
         <View style={s.searchRow}>
-          <Icon name="search" size={17} color={colors.muted} />
+          <Icon name="search" size={18} color={colors.mutedMid} />
           <TextInput
             style={s.searchInput}
             value={query}
             onChangeText={setQuery}
-            placeholder="Szukaj produktu..."
+            placeholder="np. skyr, pierś z kurczaka"
             placeholderTextColor={colors.muted}
             accessibilityLabel="Szukaj produktu"
+            returnKeyType="search"
           />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Skanuj kod kreskowy"
-            style={({ pressed }) => [s.scanButton, pressed && sh.pressed]}
-            onPress={onScanBarcode}
-          >
-            <Icon name="scan" size={18} color={colors.accent} />
-          </Pressable>
+          {query ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Wyczyść wyszukiwanie"
+              hitSlop={10}
+              style={({ pressed }) => [s.clearButton, pressed && sh.pressed]}
+              onPress={() => setQuery("")}
+            >
+              <Icon name="x" size={16} color={colors.mutedMid} />
+            </Pressable>
+          ) : null}
         </View>
+        {needsMoreChars ? <Text style={s.hint}>Wpisz min. 3 znaki, by szukać też w Open Food Facts.</Text> : null}
 
         <View style={s.quickGrid}>
           <ActionTile icon="barcode" label="Skanuj" onPress={onScanBarcode} />
@@ -193,20 +253,7 @@ export const AddFoodSheet = ({
         </View>
 
         <View style={s.tabs}>
-          {tabs.map((tab) => {
-            const active = activeTab === tab.id;
-            return (
-              <Pressable
-                key={tab.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                style={({ pressed }) => [s.tab, active && s.tabActive, pressed && sh.pressed]}
-                onPress={() => setActiveTab(tab.id)}
-              >
-                <Text style={[s.tabText, active && s.tabTextActive]}>{tab.label}</Text>
-              </Pressable>
-            );
-          })}
+          <SegmentedControl items={TABS} value={activeTab} onChange={setActiveTab} />
         </View>
 
         {activeTab === "custom" ? (
@@ -222,25 +269,19 @@ export const AddFoodSheet = ({
           keyboardDismissMode="on-drag"
           keyExtractor={(item) => String(item.id)}
           style={s.list}
-          contentContainerStyle={s.listContent}
+          contentContainerStyle={listData.length > 0 ? s.listContent : s.listEmpty}
           ListEmptyComponent={
             searching ? (
               <View style={s.loaderWrap}>
                 <ActivityIndicator size="small" color={colors.accent} />
               </View>
-            ) : (
-              <View style={s.empty}>
-                <Icon name="search" size={28} color={colors.muted} />
-                <Text style={s.emptyText}>
-                  {activeTab === "custom" ? "Brak własnych produktów" : activeTab === "recent" ? "Brak historii posiłków" : "Brak wyników"}
-                </Text>
-              </View>
-            )
+            ) : emptyState
           }
           ListFooterComponent={
             searching && listData.length > 0 ? (
               <View style={s.loaderFooter}>
                 <ActivityIndicator size="small" color={colors.accent} />
+                <Text style={s.loaderText}>Szukam w Open Food Facts...</Text>
               </View>
             ) : searchError ? (
               <Text style={s.errorText}>{searchError}</Text>
@@ -249,22 +290,26 @@ export const AddFoodSheet = ({
           renderItem={({ item, index }) => (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Dodaj ${item.name}`}
+              accessibilityLabel={`${item.name}, ${kcalLabel(item)}`}
+              accessibilityHint={item.custom ? "Przytrzymaj, aby usunąć" : undefined}
               style={({ pressed }) => [s.foodRow, index > 0 && s.foodBorder, pressed && s.foodPressed]}
               onPress={() => onSelectFood(item)}
+              onLongPress={item.custom ? () => confirmDelete(item) : undefined}
             >
               {item.imageUrl ? (
                 <Image source={{ uri: item.imageUrl }} style={s.foodImage} />
               ) : (
                 <View style={s.foodIcon}>
-                  <Icon name={item.custom ? "clipboard" : item.code ? "barcode" : "utensils"} size={17} color={colors.accent} />
+                  <Icon name={item.custom ? "clipboard" : item.code ? "barcode" : "utensils"} size={18} color={colors.mutedMid} />
                 </View>
               )}
               <View style={s.foodText}>
                 <Text style={s.foodName} numberOfLines={1}>{item.name}</Text>
-                <Text style={s.foodDetail}>{item.detail} - {item.calories} kcal</Text>
+                <Text style={s.foodDetail} numberOfLines={1}>
+                  {item.detail === "100 g" ? kcalLabel(item) : `${item.detail} · ${kcalLabel(item)}`}
+                </Text>
               </View>
-              <Icon name="plus" size={17} color={colors.mutedMid} />
+              <Icon name="chevron-right" size={18} color={colors.muted} />
             </Pressable>
           )}
         />
@@ -275,32 +320,66 @@ export const AddFoodSheet = ({
 
 const s = StyleSheet.create({
   wrap: { flex: 1, paddingHorizontal: 16 },
-  searchRow: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.border, borderRadius: 14, borderWidth: 1, flexDirection: "row", gap: 9, height: 48, marginBottom: 12, paddingHorizontal: 12 },
+  searchRow: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderColor: colors.borderMid,
+    borderRadius: radius.control,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    height: 50,
+    marginBottom: 8,
+    paddingHorizontal: 14,
+  },
   searchInput: { ...typography.body, color: colors.text, flex: 1, paddingVertical: 0 },
-  scanButton: { alignItems: "center", height: 36, justifyContent: "center", width: 36 },
-  quickGrid: { flexDirection: "row", gap: 8, marginBottom: 12 },
-  quickTile: { alignItems: "center", backgroundColor: colors.card, borderRadius: 14, flex: 1, gap: 5, justifyContent: "center", minHeight: 54 },
-  quickLabel: { ...typography.label, color: colors.mutedMid },
-  tabs: { flexDirection: "row", gap: 6, marginBottom: 12 },
-  tab: { alignItems: "center", backgroundColor: colors.card, borderRadius: 11, flex: 1, height: 34, justifyContent: "center" },
-  tabActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  tabText: { ...typography.label, color: colors.mutedMid },
-  tabTextActive: { color: colors.warmBlack },
+  clearButton: { alignItems: "center", backgroundColor: colors.surfaceAlt, borderRadius: 12, height: 24, justifyContent: "center", width: 24 },
+  hint: { ...typography.micro, color: colors.mutedMid, marginBottom: 8, marginLeft: 4 },
+  quickGrid: { flexDirection: "row", gap: 8, marginBottom: 12, marginTop: 4 },
+  quickTile: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: radius.control,
+    borderWidth: 1,
+    flex: 1,
+    gap: 6,
+    justifyContent: "center",
+    minHeight: 64,
+  },
+  quickLabel: { ...typography.label, color: colors.text },
+  tabs: { marginBottom: 12 },
   loaderWrap: { alignItems: "center", paddingVertical: 32 },
-  loaderFooter: { alignItems: "center", paddingVertical: 12 },
-  errorText: { ...typography.label, color: colors.danger, padding: 12, textAlign: "center" },
-  createCustom: { alignItems: "center", backgroundColor: colors.accentA, borderColor: colors.accentB, borderRadius: 14, borderStyle: "dashed", borderWidth: 1.5, flexDirection: "row", gap: 10, marginBottom: 10, padding: 13 },
-  createCustomText: { ...typography.label, color: colors.accent, fontSize: 13 },
+  loaderFooter: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "center", paddingVertical: 14 },
+  loaderText: { ...typography.micro, color: colors.mutedMid },
+  errorText: { ...typography.caption, color: colors.danger, padding: 12, textAlign: "center" },
+  createCustom: {
+    alignItems: "center",
+    backgroundColor: colors.accentA,
+    borderColor: colors.accentB,
+    borderRadius: radius.control,
+    borderStyle: "dashed",
+    borderWidth: 1.5,
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 10,
+    minHeight: 48,
+    paddingHorizontal: 14,
+  },
+  createCustomText: { ...typography.label, color: colors.accent, fontSize: 14 },
   list: { flex: 1 },
-  listContent: { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 16, borderWidth: 1, overflow: "hidden" },
-  foodRow: { alignItems: "center", flexDirection: "row", gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  listContent: { backgroundColor: colors.card, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, overflow: "hidden" },
+  listEmpty: { flexGrow: 1 },
+  foodRow: { alignItems: "center", flexDirection: "row", gap: 12, minHeight: 60, paddingHorizontal: 14, paddingVertical: 10 },
   foodPressed: { backgroundColor: colors.cardHov },
   foodBorder: { borderTopColor: colors.border, borderTopWidth: 1 },
-  foodIcon: { alignItems: "center", height: 28, justifyContent: "center", width: 28 },
-  foodImage: { backgroundColor: colors.surfaceAlt, borderRadius: 8, height: 36, width: 36 },
+  foodIcon: { alignItems: "center", backgroundColor: colors.surfaceAlt, borderRadius: 10, height: 40, justifyContent: "center", width: 40 },
+  foodImage: { backgroundColor: colors.surfaceAlt, borderRadius: 10, height: 40, width: 40 },
   foodText: { flex: 1, minWidth: 0 },
-  foodName: { ...typography.label, color: colors.text, fontSize: 13 },
-  foodDetail: { ...typography.label, color: colors.muted, fontSize: 11, marginTop: 2 },
-  empty: { alignItems: "center", gap: 10, justifyContent: "center", minHeight: 140 },
-  emptyText: { ...typography.label, color: colors.muted },
+  foodName: { ...typography.body, color: colors.text, fontFamily: fontFamilies.medium },
+  foodDetail: { ...typography.micro, color: colors.mutedMid, fontSize: 12, marginTop: 2 },
+  empty: { alignItems: "center", gap: 10, justifyContent: "center", minHeight: 160, paddingHorizontal: 12, paddingVertical: 20 },
+  emptyTitle: { ...typography.section, color: colors.text, textAlign: "center" },
+  emptyText: { ...typography.caption, color: colors.mutedMid, textAlign: "center" },
+  emptyActions: { alignSelf: "stretch", gap: 8, marginTop: 6 },
 });
