@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { toDateKey } from "../core/date";
-import type { MealEntry } from "./types";
+import { summarizeMeals } from "../core/macroCalculator";
+import type { MealEntry, MealMacros } from "./types";
 
 const cacheKey = (uid: string, date: Date) => `ritatu:meals:${uid}:${toDateKey(date)}`;
 
@@ -32,12 +33,14 @@ export const addMeal = async (meal: Omit<MealEntry, "id">): Promise<string> => {
   return id;
 };
 
-export const watchMealsForDay = (
-  uid: string,
-  date: Date,
-  onChange: (meals: MealEntry[]) => void,
-  onError: (error: Error) => void,
-): (() => void) => {
-  getCachedMealsForDay(uid, date).then(onChange).catch(onError);
-  return () => {};
+
+export type DayTotals = MealMacros & { dateKey: string; mealCount: number };
+
+// Totals for many days in one storage round trip (week view, calendar, streak).
+export const getDayTotals = async (uid: string, dates: Date[]): Promise<DayTotals[]> => {
+  const entries = await AsyncStorage.multiGet(dates.map((date) => cacheKey(uid, date)));
+  return entries.map(([, value], index) => {
+    const meals = parseMeals(value);
+    return { dateKey: toDateKey(dates[index]), mealCount: meals.length, ...summarizeMeals(meals) };
+  });
 };

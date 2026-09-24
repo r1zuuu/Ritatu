@@ -1,20 +1,21 @@
 # Ritatu
 
-Prywatna aplikacja do śledzenia makroskładników na Androida, zbudowana w Expo i React Native. Loguj posiłki wyszukując produkty w bazie Open Food Facts, skanując kody kreskowe lub używając analizy zdjęć opartej na GPT-4o mini. Wszystkie dane przechowywane są lokalnie na urządzeniu bez backendu, bez konta.
+Prywatna aplikacja do śledzenia makroskładników na Androida, zbudowana w Expo i React Native. Loguj posiłki wyszukując produkty w bazie Open Food Facts, skanując kody kreskowe lub używając analizy zdjęć opartej na Gemini 3.1 Flash-Lite. Wszystkie dane przechowywane są lokalnie na urządzeniu bez backendu, bez konta.
 
 ## Dlaczego?
 Aplikacje takie jak fitatu czy yazio niestety nie posiadają dobrego modelu Ai do analizy posiłków, a za ich modele trzeba jeszcze płacić. Ritatu stworzyłem dlatego żeby pokazać w jak krótkim czasie można się spiąć i przy pomocy Claude stworzyć aplikację, która nawet pod niektórymi względami jest lepsza od tych płatnych. Dodatkowo, wszystkie dane są przechowywane lokalnie, więc nie musisz się martwić o prywatność swoich danych żywieniowych.
 
 ## Funkcje
 
-- Dzienny dziennik makro z podziałem na posiłki (śniadanie, obiad, kolacja, przekąska)
-- Wyszukiwanie produktów przez Open Food Facts (polska i światowa baza)
+- Dzienny dziennik makro z podziałem na posiłki i paskiem dni tygodnia
+- Wyszukiwanie produktów: najpierw lokalna baza i własne produkty, pod nimi Open Food Facts (najpierw polskie produkty)
 - Skaner kodów kreskowych
-- Analiza zdjęć z AI — sfotografuj posiłek i otrzymaj szacunkowe makro
-- Statystyki tygodniowe z wykresem słupkowym, serią dni i wskazówkami makro
-- Własne produkty i ostatnio używane
-- Śledzenie wagi i zdjęcia postępu
-- W pełni offline — dane w AsyncStorage
+- Analiza zdjęć z AI: sfotografuj posiłek, popraw gramatury składników i zapisz
+- Szybkie kcal dla posiłków bez etykiety
+- Statystyki tygodniowe z historią tygodni, linią celu i serią dni
+- Opcjonalny próg kcal: dni poniżej progu nie liczą się do średnich
+- Pomiary: waga z historią, kalendarz 5 tygodni i zdjęcia postępu
+- W pełni offline, dane w AsyncStorage
 
 ## Stack technologiczny
 
@@ -22,7 +23,7 @@ Aplikacje takie jak fitatu czy yazio niestety nie posiadają dobrego modelu Ai d
 - Expo Router (nawigacja plikowa)
 - react-native-reanimated 4 (New Architecture)
 - AsyncStorage (bez Firebase, bez zewnętrznej bazy danych)
-- OpenAI GPT-4o mini (opcjonalne, do analizy zdjęć)
+- Google Gemini 3.1 Flash-Lite (opcjonalne, do analizy zdjęć)
 - Open Food Facts API
 
 ---
@@ -49,14 +50,8 @@ npm install
 Utwórz plik `.env` w głównym katalogu projektu. Skopiuj poniższy szablon i uzupełnij wartości.
 
 ```env
-# Wymagane do analizy zdjęć przez AI
-EXPO_PUBLIC_OPENAI_API_KEY="sk-..."
-
-# Opcjonalne — nadpisuje domyślny model (gpt-4o-mini)
-EXPO_PUBLIC_OPENAI_VISION_MODEL=""
-
-# Opcjonalne — adres lokalnego proxy (scripts/openai-proxy.mjs)
-EXPO_PUBLIC_API_BASE_URL=""
+# Wymagane do analizy zdjęć przez AI, klucz z https://aistudio.google.com/apikey
+EXPO_PUBLIC_GEMINI_API_KEY="AQ...."
 
 # Opcjonalne — dane logowania Open Food Facts
 # Przyspiesza wyszukiwanie na pl.openfoodfacts.org i pozwala uniknąć limitu zapytań.
@@ -65,7 +60,7 @@ EXPO_PUBLIC_OFF_USERNAME=""
 EXPO_PUBLIC_OFF_PASSWORD=""
 ```
 
-Żadna z tych zmiennych nie jest wymagana do uruchomienia aplikacji. Bez `EXPO_PUBLIC_OPENAI_API_KEY` funkcja analizy zdjęć jest wyłączona. Bez danych OFF wyszukiwanie działa, ale może być ograniczone przez limit zapytań na polskim subdomenie.
+Żadna z tych zmiennych nie jest wymagana do uruchomienia aplikacji. Bez `EXPO_PUBLIC_GEMINI_API_KEY` analiza zdjęć pokaże komunikat o brakującym kluczu. Bez danych OFF wyszukiwanie działa, ale może być ograniczone przez limit zapytań na polskim subdomenie.
 
 ### 3. Połącz z własnym projektem Expo
 
@@ -145,17 +140,9 @@ Zabij aplikację na telefonie i otwórz ponownie, żeby pobrać aktualizację. P
 
 ## Analiza zdjęć przez AI
 
-Funkcja analizy zdjęć wysyła zdjęcie w formacie base64 do API OpenAI i zwraca szacunkowe makro. Dostępne dwa tryby:
+Analiza wysyła zdjęcie (base64) do Gemini 3.1 Flash-Lite i dostaje listę składników z gramaturą i makro. Sumy liczy aplikacja, a użytkownik może poprawić gramatury albo poprosić AI o korektę opisem.
 
-**Bezpośrednie API** — ustaw `EXPO_PUBLIC_OPENAI_API_KEY` w `.env`. Zapytania są wysyłane bezpośrednio z urządzenia. Klucz API wbudowany w aplikację mobilną jest widoczny dla osoby, która zdekompiluje APK. Odpowiednie do użytku prywatnego.
-
-**Lokalne proxy** — uruchom dołączony serwer proxy i ustaw `EXPO_PUBLIC_API_BASE_URL` na jego adres:
-
-```bash
-npm run api
-```
-
-Proxy działa domyślnie na porcie 3000 i przekazuje zapytania do OpenAI używając klucza po stronie serwera. Zalecane, jeśli nie chcesz umieszczać klucza na urządzeniu.
+Ustaw `EXPO_PUBLIC_GEMINI_API_KEY` w `.env`. Zapytania idą bezpośrednio z urządzenia, więc klucz jest wbudowany w APK i widoczny dla kogoś, kto je zdekompiluje. Do użytku prywatnego to wystarczy; ustaw limit wydatków w AI Studio.
 
 ---
 
@@ -170,10 +157,8 @@ src/
   providers/          React context (auth, posiłki, profil użytkownika)
   screens/            Komponenty ekranów i podkomponentów
     home/             HomeScreen podzielony na osobne pliki
-  services/           Klienty zewnętrznych API (OpenFoodFacts, OpenAI)
+  services/           Klienty zewnętrznych API (Open Food Facts, Gemini)
   theme/              Tokeny kolorów, typografia, współdzielone style
-scripts/
-  openai-proxy.mjs    Lokalny serwer proxy dla OpenAI
 assets/               Ikony aplikacji i ekran powitalny
 ```
 
@@ -181,7 +166,7 @@ assets/               Ikony aplikacji i ekran powitalny
 
 ## Logowanie
 
-Logowanie jest tylko lokalne. Domyślne dane: `login` / `1234`. Aby je zmienić, edytuj `src/providers/AuthProvider.tsx`.
+Nie ma logowania: aplikacja jest lokalna i jednoosobowa. Przy pierwszym uruchomieniu otwiera się onboarding, a potem od razu dziennik.
 
 ---
 

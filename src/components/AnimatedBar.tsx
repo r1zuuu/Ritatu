@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import Animated, {
   Easing,
@@ -27,6 +27,7 @@ export function AnimatedBar({
   delay?: number;
   track?: string;
 }) {
+  const [trackWidth, setTrackWidth] = useState(0);
   const w = useSharedValue(0);
 
   useEffect(() => {
@@ -39,13 +40,22 @@ export function AnimatedBar({
     );
   }, [pct, delay, w]);
 
-  const fill = useAnimatedStyle(() => ({ width: `${w.value}%` }));
+  // Slide a full-width fill in from the left instead of animating width:
+  // transforms stay on the UI thread and the rounded end keeps its shape.
+  const fill = useAnimatedStyle(() => ({
+    transform: [{ translateX: ((w.value - 100) / 100) * trackWidth }],
+  }));
 
   return (
-    <View style={[s.track, { height, borderRadius: height / 2, backgroundColor: track }]}>
-      <Animated.View
-        style={[{ height: "100%", borderRadius: height / 2, backgroundColor: color }, fill]}
-      />
+    <View
+      style={[s.track, { height, borderRadius: height / 2, backgroundColor: track }]}
+      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+    >
+      {trackWidth > 0 ? (
+        <Animated.View
+          style={[{ height: "100%", borderRadius: height / 2, backgroundColor: color }, fill]}
+        />
+      ) : null}
     </View>
   );
 }

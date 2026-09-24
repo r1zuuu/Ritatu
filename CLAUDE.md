@@ -10,82 +10,80 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm start          # Start Expo dev server (Metro bundler)
 npm run android    # Build and run on Android device/emulator
 npm run web        # Start in browser (OFF search disabled — CORS)
-npm run api        # Start local OpenAI proxy (scripts/openai-proxy.mjs)
-eas build --platform android --profile preview   # Build APK via EAS
+npx tsc --noEmit   # Typecheck (there is no test suite or linter)
+eas build --platform android --profile preview   # Build APK via EAS (needed after native deps change)
 eas update --branch preview --message "..."      # OTA JS update
 ```
 
-Environment variables (set in `.env`, never commit this file):
-- `EXPO_PUBLIC_OPENAI_API_KEY` — OpenAI key for vision analysis
-- `EXPO_PUBLIC_OPENAI_VISION_MODEL` — override model (default: gpt-4o-mini)
-- `EXPO_PUBLIC_API_BASE_URL` — base URL for local OpenAI proxy
-- `EXPO_PUBLIC_OFF_USERNAME` / `EXPO_PUBLIC_OFF_PASSWORD` — Open Food Facts Basic Auth (avoids rate limiting on pl.openfoodfacts.org)
+`runtimeVersion.policy = "appVersion"`: an OTA update only reaches builds with the same `version` in `app.config.js`. Adding a native module means bumping the version and a new build.
+
+Environment variables (set in `.env`, never commit this file; `EXPO_PUBLIC_*` values are inlined into the bundle at build/update time):
+- `EXPO_PUBLIC_GEMINI_API_KEY` — Google AI Studio key (new `AQ.` format) for meal photo analysis
+- `EXPO_PUBLIC_OFF_USERNAME` / `EXPO_PUBLIC_OFF_PASSWORD` — Open Food Facts Basic Auth (avoids rate limiting)
 
 ## Architecture
 
 ### Routing
 Expo Router with file-based routing. Files in `app/` are thin re-exports; all logic lives in `src/screens/`.
 
-- `app/_layout.tsx` — root Stack layout, loads fonts, mounts providers: `AuthProvider → UserProfileProvider → MealsProvider`. Tab screens use `animation: "none"` to avoid slide overlap.
-- `app/index.tsx` — redirect logic (login vs home)
-- `app/home.tsx` → `src/screens/home/HomeScreen.tsx`
-- `app/weekly.tsx` → `src/screens/WeeklyScreen.tsx`
-- `app/profile.tsx` → `src/screens/ProfileScreen.tsx`
-- `app/history.tsx` → `src/screens/HistoryScreen.tsx`
-- `app/add-meal/barcode.tsx`, `photo.tsx`, `manual.tsx` → their screen counterparts
+- `app/_layout.tsx` — root Stack, loads fonts, mounts `UserProfileProvider → ToastProvider → MealsProvider`.
+- `app/index.tsx` — redirect: onboarding until `profile.onboardingDone`, then `/home`.
+- `app/(tabs)/_layout.tsx` — expo-router `Tabs` (from `expo-router/js-tabs`) with the custom `BottomTabBar` as `tabBar`. Tabs: `home` (Dziennik), `weekly` (Tydzień), `measurements` (Pomiary), `profile` (Profil). Screens stay mounted; they reload data in `useFocusEffect`.
+- `app/onboarding.tsx` — first run; `?edit=1` opens it from Profile to edit body data (cancel + back).
+- `app/add-meal/barcode.tsx`, `photo.tsx` — pushed on the root Stack; after saving they `router.back()`.
 
 ### Navigation
-Custom `BottomTabBar` component (not Expo Router tabs). Renders 3 equal tabs (Dziennik / Tydzień / Profil) plus a floating FAB in the bottom-right corner that opens a speed-dial with Skaner / Zdjęcie options. Tab switching uses `router.replace()`.
+`src/components/BottomTabBar.tsx`: 4 tabs with one sliding pill (always painted, fixed radius) plus a floating FAB whose speed-dial offers Wyszukaj / Skanuj kod / Zdjęcie AI. `/home?add=<Section>` opens the diary search sheet. Scrollable tab screens pad their content by `FAB_CLEARANCE`.
 
 ### Data storage
-**No Firebase.** Everything is `AsyncStorage` only. Storage keys follow `ritatu:<domain>:<uid>:<dateKey>` pattern.
-- `src/data/mealRepository.ts` — CRUD for `MealEntry[]` per day
-- `src/data/userRepository.ts` — user profile with macro goals
-- `src/data/developerRepository.ts` — dev settings, `CUSTOM_PRODUCTS_KEY`, `WEIGHTS_KEY`
-- `src/data/progressPhotoRepository.ts` — progress photo metadata
+**No backend.** Everything is `AsyncStorage`. Meal keys follow `ritatu:meals:<uid>:<YYYY-MM-DD>`.
+- `src/data/mealRepository.ts` — `MealEntry[]` per day; `getDayTotals(uid, dates)` reads many days in one `multiGet`
+- `src/data/userRepository.ts` — user profile with macro goals and optional `minCountedKcal`
+- `src/data/weightRepository.ts` — weigh-ins (ISO dates, one per day)
+- `src/data/progressPhotoRepository.ts` — progress photo metadata; files are copied into `Paths.document/progress-photos`
+- `src/data/developerRepository.ts` — dev settings, `CUSTOM_PRODUCTS_KEY`, `WEIGHTS_KEY`, demo seed
+- `src/data/csvExport.ts` — meals / days CSV export
 
 ### Auth
-Local-only. `src/providers/AuthProvider.tsx` stores a boolean flag in AsyncStorage. Hardcoded credentials: `stas` / `1234`. `LocalUser.uid = "stas"` is the key used for all storage.
+None: the app is local and single-user. `useAuth()` returns a constant `LocalUser` with `uid: "user"`; every storage key uses it, so it must never change.
 
 ### Core data model
-`MealEntry` (and `MealDraft`) stores macros **per 100 g** plus `weightG`. Actual macros are computed via:
+`MealEntry` (and `MealDraft`) stores macros **per 100 g** plus `weightG`, and optional `kcalPer100g` (label energy; otherwise 4/4/9). Actual values: `calculateMealMacros(meal, meal.weightG)` in `src/core/macroCalculator.ts`.
 
-```ts
-calculateMealMacros(meal, meal.weightG)  // src/core/macroCalculator.ts
-```
+The day the diary shows lives in `MealsProvider` (`dateOffset`, `selectedDate`), and `useMeals().addMeal` saves to it, so every add path (search, scanner, photo, FAB) lands on the selected day and shows a confirmation toast.
 
-### HomeScreen structure
-The monolith has been split. `src/screens/HomeScreen.tsx` re-exports from `src/screens/home/`:
-- `HomeScreen.tsx` — orchestrator (~350 lines), manages all state
-- `DiaryView.tsx` — daily log with meal sections
-- `AddFoodSheet.tsx` — search sheet (search/recent/custom tabs), 500ms debounce
-- `FoodDetailSheet.tsx` — amount picker before saving
-- `CreateCustomSheet.tsx` — create custom products
-- `MeasurementsView.tsx` — weight chart + progress photos
-- `QuickAddSheet.tsx`, `AddProgressPhotoSheet.tsx`, `FormField.tsx`
-- `types.ts` — `FoodItem` display type (distinct from `MealDraft`)
-- `foodDb.ts` — local fallback food database
+Shared rules in `macroCalculator.ts`: `goalStatus(kcal, goal)` (met = 90–110%) and `isDayCounted(kcal, minKcal)` (days under the optional floor are "nieliczone": out of averages, goal stats and streaks). Week view, calendar and CSV all use them.
+
+### Screens
+- `src/screens/home/` — Dziennik: `HomeScreen` (state, sheets), `DiaryView` (date header, week strip, sections), `AddFoodSheet` (search/recent/custom), `FoodDetailSheet`, `QuickAddSheet` (szybkie kcal), `CreateCustomSheet`, `MeasurementsView`, `DaysCalendar`, `AddWeightSheet`, `AddProgressPhotoSheet`, `foodDb.ts` (local food DB), `types.ts` (`FoodItem`)
+- `src/screens/MeasurementsScreen.tsx` — Pomiary tab state (weights, photos)
+- `src/screens/WeeklyScreen.tsx` — week stats with week-by-week navigation
+- `src/screens/ProfileScreen.tsx` — body data, goals, kcal floor, CSV export, collapsed dev tools
+- `src/components/MacroConfirmSheet.tsx` — confirm/edit a meal (photo ingredients, weight, or quick kcal)
+
+There is no manual per-100 g entry; unknown products go through search, scanning, quick kcal or a custom product.
+
+### Search (`AddFoodSheet` + `src/core/search.ts`)
+Local results (custom products + `FOOD_DB`) always come first; Open Food Facts results are appended below and never reorder them. Matching folds Polish diacritics (`ł` explicitly) and tolerates inflection. Remote results are tagged with their query; superseded requests are aborted.
 
 ### External services
 
 **Open Food Facts** (`src/services/openFoodFactsService.ts`):
-- Search: `/cgi/search.pl?search_simple=1` — searches by product name only (avoids brand/tag false matches)
-- Parallel fetch: `pl.openfoodfacts.org` + `world.openfoodfacts.org` + USDA, deduplicated by `code`
-- Basic Auth via `offHeaders()` using env credentials
-- Web platform: OFF fetches skipped (no CORS headers) — USDA only
-- Barcode lookup: `/api/v2/product/{barcode}.json` on world subdomain
+- Search: search-a-licious (`search.openfoodfacts.org/search`), two parallel queries — filtered to `countries_tags:"en:poland"` and global — merged Poland-first, deduplicated by `code`, 8 s timeout
+- Barcode lookup: `world.openfoodfacts.org/api/v2/product/{barcode}.json`, keeps label kcal
+- Web: search skipped (no CORS headers)
 
-**GPT Vision** (`src/services/gptVisionService.ts`):
-- Returns `dish_name`, `estimated_weight_g`, `protein_per_100g`, `carbs_per_100g`, `fat_per_100g`, `confidence`, `note`
-- Two modes: direct OpenAI API (key in env) or local proxy (`EXPO_PUBLIC_API_BASE_URL`)
-- Prompt explicitly instructs model that liquid foods have low per-100g macros
+**Vision** (`src/services/visionService.ts`):
+- Gemini `gemini-3.1-flash-lite` via REST `generateContent`, key in `x-goog-api-key`, structured JSON via `responseSchema`
+- Returns per-ingredient `items` (name, weight_g, protein_g, carbs_g, fat_g), `confidence`, `note`; totals are summed in code
+- User-facing errors are short Polish messages; details go to `console.warn`
 
-### Theme
-- `src/theme/colors.ts` — warm dark palette (`background: "#111009"`)
-- `src/theme/typography.ts` — Inter family + Barlow_300Light for uppercase labels only
-- `src/theme/sharedStyles.ts` — shared pressed/disabled/cta styles
-- All styles via `StyleSheet.create({})` inline — no styled-components
-- Fonts loaded in `app/_layout.tsx`: Inter 400/500/600/700, Barlow 300, MaterialSymbols_200ExtraLight
+### Theme and UI
+- `src/theme/colors.ts` — warm dark palette. `muted` is the floor for readable text (≥4.5:1 on every surface); `dangerA`/`greenA` tints, `scrim`
+- `src/theme/typography.ts` — Inter for all UI text (`display`, `title`, `headline`, `section`, `body`, `caption`, `label`, `micro` ≥ 11 px); Barlow Light only for short uppercase eyebrows (`stat`)
+- `src/theme/layout.ts` — `radius` (incl. `control: 14`), `space`, `shadow`
+- One control per job: `Button`, `FormField`, `SegmentedControl`, `Sheet` (use `height="fit"` for content-sized sheets), `Toast` (`useToast()`, optional undo action)
+- All styles via `StyleSheet.create({})`; animate transforms/opacity only
 
 ### Screen padding convention
-All main screens use `paddingHorizontal: 20`. Screens with `<Screen padded={false}>` manage their own padding; screens using `<Screen>` (padded=true default) get `padding: 20` from the component — do not add extra horizontal padding on top.
+Main screens use `paddingHorizontal: 20` (`space.xl`). Screens with `<Screen padded={false}>` manage their own padding; screens using `<Screen>` (padded default) get `padding: 20` — do not add extra horizontal padding on top. Tab screens use `noBottomInset` and pad scroll content with `FAB_CLEARANCE`.

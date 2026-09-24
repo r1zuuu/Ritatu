@@ -1,38 +1,32 @@
 # Ritatu Project Context
 
-Last updated: 2026-06-06
+Last updated: 2026-09-24
 
 ## Current Project State
 
-Ritatu is a React Native + Expo SDK 56 + TypeScript macro tracker. Fully local — no Firebase, no backend, no authentication server. All data in AsyncStorage.
+Ritatu is a React Native + Expo SDK 56 + TypeScript macro tracker. Fully local: no backend, no accounts, all data in AsyncStorage. Architecture details live in `CLAUDE.md`; this file keeps product and operational context.
 
 ### What is implemented
 
-- Expo Router file-based navigation with custom BottomTabBar (3 tabs + FAB speed-dial)
-- HomeScreen split into focused components under `src/screens/home/`
-- DiaryView — daily log with meal sections, date navigation
-- AddFoodSheet — product search with 3 tabs (search/recent/custom), 500ms debounce
-- Open Food Facts search (CGI endpoint, name-only, pl + world parallel, Basic Auth, CORS-safe)
-- Barcode scanner screen
-- Photo analysis screen (GPT-4o mini vision, macro estimation per 100g)
-- WeeklyScreen — bar chart, 7-day dots, macro averages, weekly insights (flags macros below 80% of goal)
-- ProfileScreen — color-coded 2×2 goal tiles, settings list
-- HistoryScreen — scrollable meal history by day
-- Progress photos and weight tracking (MeasurementsView)
-- Custom products (saved to AsyncStorage)
-- Quick add (one-shot meal without product lookup)
-- MacroConfirmSheet — confirm/edit AI analysis before saving
-- EAS Build + EAS Update configured (branch: preview)
+- Four real tabs (Dziennik / Tydzień / Pomiary / Profil) with a sliding pill and a FAB speed-dial (Wyszukaj / Skanuj kod / Zdjęcie AI)
+- Diary with a week strip, meal sections and a day that every add path respects
+- Product search: local DB and custom products first, Open Food Facts (Poland first, then world) below
+- Barcode scanner, meal photo analysis (Gemini 3.1 Flash-Lite), quick kcal entries, custom products
+- Week stats with history, goal line, streak; a five-week days calendar in Pomiary
+- Optional kcal floor: days under it are "nieliczone" (out of averages, goal stats and streaks)
+- Weigh-ins (one per day, history with undo) and progress photos stored in app documents
+- Toasts for every save, undo for deletes, CSV export of meals and days
+- Onboarding that doubles as "edit my data" from Profile
 
 ### Auth
 
-Local only. Hardcoded: `stas` / `1234`. `LocalUser.uid = "stas"`.
+None. `useAuth()` returns a constant user with `uid: "user"`; every storage key depends on it.
 
 ## Product Rules
 
-- Calories are never stored — always calculated: `protein * 4 + carbs * 4 + fat * 9`
-- AI vision returns macros per 100g + estimated weight, never final calories
-- User must confirm weight before saving any meal
+- Label energy (`kcalPer100g`) wins when present; otherwise kcal = protein*4 + carbs*4 + fat*9
+- AI returns ingredients with grams and macros; totals are summed in code
+- The user confirms weight (or kcal) before saving any meal
 - No micros, no subscriptions, no social features
 
 ## Macro colors
@@ -46,30 +40,25 @@ Local only. Hardcoded: `stas` / `1234`. `LocalUser.uid = "stas"`.
 ## Environment Variables
 
 ```env
-EXPO_PUBLIC_OPENAI_API_KEY=""
-EXPO_PUBLIC_OPENAI_VISION_MODEL=""
-EXPO_PUBLIC_API_BASE_URL=""
+EXPO_PUBLIC_GEMINI_API_KEY=""
 EXPO_PUBLIC_OFF_USERNAME=""
 EXPO_PUBLIC_OFF_PASSWORD=""
 ```
 
-`.env` is gitignored. Never commit secrets.
+`.env` is gitignored. Never commit secrets. Keys created in AI Studio since mid-2026 use the `AQ.` format and go in the `x-goog-api-key` header.
 
 ## Open Food Facts
 
-- Search endpoint: `/cgi/search.pl?search_simple=1&action=process&json=1` — name-only search, avoids brand/tag false positives
-- Barcode endpoint: `/api/v2/product/{barcode}.json`
-- Parallel sources: `pl.openfoodfacts.org` + `world.openfoodfacts.org` + USDA, deduplicated by `code`
-- Basic Auth via `EXPO_PUBLIC_OFF_*` env vars to avoid rate limiting
-- Web platform: OFF fetches skipped (no CORS headers on OFF subdomains)
+- Search: `search.openfoodfacts.org/search` (search-a-licious); the old `/cgi/search.pl` returns 503
+- No diacritic folding on the OFF side ("losos" finds nothing), so local matching folds diacritics itself
+- Two parallel queries (Poland-filtered and global), merged Poland-first, deduplicated by `code`
+- Barcode: `world.openfoodfacts.org/api/v2/product/{barcode}.json`
+- Web platform: search skipped (no CORS headers)
 
-## OpenAI Vision
+## Vision
 
-- Default model: `gpt-4o-mini`
-- Two modes: direct API (key in env) or local proxy (`npm run api`)
-- Returns JSON: `dish_name`, `estimated_weight_g`, `protein_per_100g`, `carbs_per_100g`, `fat_per_100g`, `confidence`, `note`
-- Prompt instructs model that liquid foods (smoothies, soups) have low per-100g values (60–130 kcal/100g)
-- Refine flow: user can add context and re-analyze with the same photo
+- Model: `gemini-3.1-flash-lite` (2026 benchmark of 3229 meal photos: near-best calorie accuracy, best ingredient recognition, about the same per-photo cost as GPT-5.6 Luna)
+- REST `generateContent` with `responseSchema`; Polish names; refine re-analyses with the user's edited ingredients
 
 ## EAS
 
@@ -77,7 +66,7 @@ EXPO_PUBLIC_OFF_PASSWORD=""
 - Build profile: `preview` (internal distribution APK)
 - Update branch: `preview`
 - OTA update: JS-only changes → `eas update --branch preview --message "..."`
-- Full rebuild required: native libs, icons, permissions, `app.config.js` native settings
+- Full rebuild required: native libs, icons, permissions, `app.config.js` native settings (`runtimeVersion` follows the app version)
 
 ## Development Preferences
 

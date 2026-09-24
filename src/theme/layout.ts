@@ -3,6 +3,8 @@ import { Platform } from "react-native";
 // Rounder geometry — friendly, less boxy
 export const radius = {
   sm: 12,
+  // Buttons, inputs, notices: the most common radius in the app.
+  control: 14,
   md: 16,
   lg: 20,
   xl: 26,

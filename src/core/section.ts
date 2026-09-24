@@ -10,3 +10,14 @@ export const getSectionByTime = (): Section => {
   if (minutes >= 18 * 60 && minutes < 22 * 60) return "Kolacja";
   return "Przekąska";
 };
+
+export const isSection = (value: unknown): value is Section =>
+  (SECTIONS as readonly unknown[]).includes(value);
+
+// Polish needs the genitive after "do": "Dodaj do obiadu", not "Dodaj do Obiad".
+export const SECTION_GENITIVE: Record<Section, string> = {
+  Śniadanie: "śniadania",
+  Obiad: "obiadu",
+  Kolacja: "kolacji",
+  Przekąska: "przekąski",
+};

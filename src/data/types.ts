@@ -94,6 +94,8 @@ export type UserProfile = {
   goalProteinG?: number | null;
   goalCarbsG?: number | null;
   goalFatG?: number | null;
+  // Optional floor: days logged under it are "not counted" (see isDayCounted).
+  minCountedKcal?: number | null;
   onboardingDone: boolean;
 };
 

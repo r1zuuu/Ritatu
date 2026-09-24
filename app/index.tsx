@@ -1,22 +1,12 @@
 import { Redirect } from "expo-router";
-import { ActivityIndicator, View } from "react-native";
-import { colors } from "../src/theme/colors";
-import { useAuth } from "../src/providers/AuthProvider";
+import { View } from "react-native";
 import { useUserProfile } from "../src/providers/UserProfileProvider";
+import { colors } from "../src/theme/colors";
 
 export default function IndexRoute() {
-  const { user, loading: authLoading } = useAuth();
-  const { profile, loading: profileLoading } = useUserProfile();
+  const { profile, loading } = useUserProfile();
 
-  if (authLoading || (user && profileLoading)) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={colors.text} />
-      </View>
-    );
-  }
-
-  if (!user) return <Redirect href="/login" />;
-  if (!profile?.onboardingDone) return <Redirect href="/onboarding" />;
-  return <Redirect href="/home" />;
+  // A local read, fast enough that a spinner would only flash.
+  if (loading || !profile) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  return <Redirect href={profile.onboardingDone ? "/home" : "/onboarding"} />;
 }
