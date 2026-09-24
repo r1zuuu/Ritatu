@@ -1,29 +1,14 @@
-import { env, isApiConfigured, isOpenAiConfigured } from "../config/env";
+import { env } from "../config/env";
 import { round } from "../core/macroCalculator";
 import type { Confidence, VisionItem, VisionMealResult } from "../data/types";
 
-type AnalyzeMealPhotoResponse =
-  | VisionMealResult
-  | {
-      result?: VisionMealResult;
-      error?: string;
-    };
-
-type OpenAiResponse = {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
-  error?: {
-    message?: string;
-  };
-};
-
-const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
-const DEFAULT_OPENAI_MODEL = "gpt-5.6-luna";
-const MAX_TOKENS = 2000;
-const IMAGE_DETAIL = "high";
+// Gemini 3.1 Flash-Lite: in a 2026 benchmark of 3229 meal photos it was within
+// a hair of the best calorie estimates and best at naming ingredients, at about
+// the same per-photo cost as GPT-5.6 Luna.
+const MODEL = "gemini-3.1-flash-lite";
+const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+const MAX_OUTPUT_TOKENS = 4096;
+const TIMEOUT_MS = 40_000;
 
 const VISION_SYSTEM_PROMPT = `Jestes ekspertem od wartosci odzywczych i szacowania porcji. Odpowiadasz TYLKO JSON-em, bez tekstu przed ani po.
 
@@ -42,10 +27,15 @@ METODA — licz skladnik po skladniku, nigdy "na oko" dla calosci:
   - chleb ~ 9 B / 49 W / 3 T
   - oliwa/olej ~ 0 B / 0 W / 100 T
   (to kotwice; dla innych skladnikow uzyj wiedzy o ich wartosciach i przeskaluj do weight_g)
+- Pamietaj o tluszczu uzytym do smazenia i o sosach, nawet jesli slabo je widac.
 - NIE zwracaj sumy dania — sumy policzy kod z pola items.
 
 KONTROLA:
 - Sprawdz sam dla siebie: suma (protein_g*4 + carbs_g*4 + fat_g*9) po skladnikach powinna dac rozsadna kalorycznosc (obiad domowy 400-800, fast-food 500-1200, koktajl 200-600, przekaska 100-400). Poza skala — popraw wagi/skladniki.
+- Napoje i zupy maja niskie wartosci na 100 g; nie zawyzaj ich.
+
+JEZYK:
+- dish_name, name i note pisz po polsku, z polskimi znakami. Nazwy krotkie, np. "Ryż biały gotowany".
 
 PEWNOSC (confidence):
 - high: user podal konkretne ilosci wszystkich glownych skladnikow.
@@ -54,39 +44,59 @@ PEWNOSC (confidence):
 
 JESLI NA ZDJECIU NIE MA JEDZENIA lub nie da sie nic oszacowac: zwroc pusta liste items, confidence "low", wyjasnij w "note".`;
 
-// OpenAI Structured Outputs — wymusza dokladny ksztalt odpowiedzi (strict).
-const VISION_JSON_SCHEMA = {
-  name: "meal_analysis",
-  strict: true,
-  schema: {
-    type: "object",
-    additionalProperties: false,
-    required: ["dish_name", "items", "confidence", "note"],
-    properties: {
-      dish_name: { type: "string" },
+// Gemini structured output (OpenAPI subset). propertyOrdering puts items
+// before confidence, so the model reasons about ingredients first.
+const VISION_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    dish_name: { type: "STRING" },
+    items: {
+      type: "ARRAY",
       items: {
-        type: "array",
-        items: {
-          type: "object",
-          additionalProperties: false,
-          required: ["name", "weight_g", "protein_g", "carbs_g", "fat_g"],
-          properties: {
-            name: { type: "string" },
-            weight_g: { type: "number" },
-            protein_g: { type: "number" },
-            carbs_g: { type: "number" },
-            fat_g: { type: "number" },
-          },
+        type: "OBJECT",
+        properties: {
+          name: { type: "STRING" },
+          weight_g: { type: "NUMBER" },
+          protein_g: { type: "NUMBER" },
+          carbs_g: { type: "NUMBER" },
+          fat_g: { type: "NUMBER" },
         },
+        required: ["name", "weight_g", "protein_g", "carbs_g", "fat_g"],
+        propertyOrdering: ["name", "weight_g", "protein_g", "carbs_g", "fat_g"],
       },
-      confidence: { type: "string", enum: ["low", "medium", "high"] },
-      note: { type: ["string", "null"] },
     },
+    confidence: { type: "STRING", enum: ["low", "medium", "high"] },
+    note: { type: "STRING", nullable: true },
   },
+  required: ["dish_name", "items", "confidence", "note"],
+  propertyOrdering: ["dish_name", "items", "confidence", "note"],
 } as const;
 
-const endpoint = (path: string) =>
-  `${env.apiBaseUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+type GeminiResponse = {
+  candidates?: Array<{
+    content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+    finishReason?: string;
+  }>;
+  promptFeedback?: { blockReason?: string };
+  error?: { code?: number; message?: string; status?: string };
+};
+
+// What the user sees. Technical detail goes to console.warn only: raw API
+// errors are English and meaningless on a phone.
+const MESSAGES = {
+  noKey: "Brakuje klucza Gemini (EXPO_PUBLIC_GEMINI_API_KEY w .env).",
+  auth: "Klucz Gemini jest nieprawidłowy albo nie ma dostępu do modelu.",
+  quota: "Limit zapytań do AI na chwilę się wyczerpał. Spróbuj za minutę.",
+  network: "Nie udało się połączyć z AI. Sprawdź internet i spróbuj ponownie.",
+  timeout: "Analiza trwa zbyt długo. Spróbuj ponownie.",
+  blocked: "AI nie przeanalizowało tego zdjęcia. Spróbuj innego ujęcia.",
+  invalid: "AI zwróciło niepełną odpowiedź. Spróbuj ponownie.",
+};
+
+const fail = (message: string, detail?: unknown): never => {
+  if (detail !== undefined) console.warn("[vision]", detail);
+  throw new Error(message);
+};
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -105,7 +115,7 @@ const fetchWithRetry = async (
       }
       return response;
     } catch (err) {
-      if (attempt >= retries) throw err;
+      if (options.signal?.aborted || attempt >= retries) throw err;
       await sleep(500 * 2 ** attempt);
     }
   }
@@ -180,110 +190,77 @@ const buildUserText = (mealTitle?: string) => {
     : `Brak opisu tekstowego. Rozpoznaj danie i oszacuj wage kazdego skladnika ze zdjecia, skladnik po skladniku.`;
 };
 
-const buildRequestBody = (userText: string, base64: string, mimeType: string) => ({
-  model: env.openaiVisionModel || DEFAULT_OPENAI_MODEL,
-  temperature: 0.2,
-  max_tokens: MAX_TOKENS,
-  response_format: { type: "json_schema", json_schema: VISION_JSON_SCHEMA },
-  messages: [
-    { role: "system", content: VISION_SYSTEM_PROMPT },
-    {
-      role: "user",
-      content: [
-        { type: "text", text: userText },
-        {
-          type: "image_url",
-          image_url: { url: `data:${mimeType};base64,${base64}`, detail: IMAGE_DETAIL },
-        },
-      ],
-    },
-  ],
-});
-
-// Jeden punkt wywolania OpenAI — uzywany i przez analyze, i przez refine.
-const callOpenAi = async (
+// Jeden punkt wywolania Gemini — uzywany i przez analyze, i przez refine.
+const callGemini = async (
   userText: string,
   base64: string,
   mimeType: string,
 ): Promise<VisionMealResult> => {
-  const response = await fetchWithRetry(OPENAI_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${env.openaiApiKey}`,
-    },
-    body: JSON.stringify(buildRequestBody(userText, base64, mimeType)),
-  });
+  if (!env.geminiApiKey) fail(MESSAGES.noKey);
 
-  const payload = (await response.json().catch(() => null)) as OpenAiResponse | null;
-  if (!response.ok) {
-    throw new Error(payload?.error?.message ?? "Nie udalo sie przeanalizowac zdjecia.");
-  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-  const content = payload?.choices?.[0]?.message?.content;
-  if (!content || typeof content !== "string") {
-    throw new Error("OpenAI nie zwrocilo odpowiedzi.");
-  }
-
-  let parsed: unknown;
+  let response: Response;
   try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("OpenAI zwrocilo niepoprawny JSON.");
+    response = await fetchWithRetry(ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": env.geminiApiKey },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: VISION_SYSTEM_PROMPT }] },
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: userText }, { inline_data: { mime_type: mimeType, data: base64 } }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
+          responseMimeType: "application/json",
+          responseSchema: VISION_SCHEMA,
+        },
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    return fail(controller.signal.aborted ? MESSAGES.timeout : MESSAGES.network, err);
+  } finally {
+    clearTimeout(timeout);
   }
 
-  return parseVisionResult(parsed);
-};
-
-const analyzeMealPhotoViaApi = async (
-  base64: string,
-  mimeType = "image/jpeg",
-  mealTitle?: string,
-): Promise<VisionMealResult> => {
-  // ponytail: sciezka proxy jest nieaktualna — scripts/openai-proxy.mjs nie zwraca
-  // jeszcze pola items. Zaktualizuj proxy przed ustawieniem EXPO_PUBLIC_API_BASE_URL.
-  const response = await fetch(endpoint("/analyze-meal-photo"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageBase64: base64, mimeType, mealTitle }),
-  });
-
-  const payload = (await response.json().catch(() => null)) as AnalyzeMealPhotoResponse | null;
-
+  const payload = (await response.json().catch(() => null)) as GeminiResponse | null;
   if (!response.ok) {
-    const message =
-      payload && "error" in payload && payload.error
-        ? payload.error
-        : "Nie udalo sie przeanalizowac zdjecia.";
-    throw new Error(message);
+    const detail = payload?.error ?? response.status;
+    if (response.status === 401 || response.status === 403) fail(MESSAGES.auth, detail);
+    if (response.status === 429) fail(MESSAGES.quota, detail);
+    fail(MESSAGES.network, detail);
   }
 
-  const result = payload && "result" in payload && payload.result ? payload.result : payload;
-
-  if (!result || !("dish_name" in result)) {
-    throw new Error("Backend nie zwrocil poprawnej analizy posilku.");
+  if (payload?.promptFeedback?.blockReason) fail(MESSAGES.blocked, payload.promptFeedback);
+  const candidate = payload?.candidates?.[0];
+  if (candidate?.finishReason && candidate.finishReason !== "STOP") {
+    fail(candidate.finishReason === "MAX_TOKENS" ? MESSAGES.invalid : MESSAGES.blocked, candidate.finishReason);
   }
 
-  return result as VisionMealResult;
+  // Thinking models may return thought parts before the answer; skip them.
+  const text = (candidate?.content?.parts ?? [])
+    .filter((part) => !part.thought && typeof part.text === "string")
+    .map((part) => part.text)
+    .join("");
+
+  try {
+    return parseVisionResult(JSON.parse(text));
+  } catch (err) {
+    return fail(MESSAGES.invalid, { err, text });
+  }
 };
 
-export const analyzeMealPhoto = async (
+export const analyzeMealPhoto = (
   base64: string,
   mimeType = "image/jpeg",
   mealTitle?: string,
-): Promise<VisionMealResult> => {
-  if (isApiConfigured) {
-    return analyzeMealPhotoViaApi(base64, mimeType, mealTitle);
-  }
-
-  if (isOpenAiConfigured) {
-    return callOpenAi(buildUserText(mealTitle), base64, mimeType);
-  }
-
-  throw new Error(
-    "Brakuje EXPO_PUBLIC_API_BASE_URL lub EXPO_PUBLIC_OPENAI_API_KEY. Dodaj klucz OpenAI do configu aplikacji.",
-  );
-};
+): Promise<VisionMealResult> => callGemini(buildUserText(mealTitle), base64, mimeType);
 
 export const refineMealAnalysis = async (
   base64: string,
@@ -291,14 +268,10 @@ export const refineMealAnalysis = async (
   previous: VisionMealResult,
   userContext: string,
 ): Promise<VisionMealResult> => {
-  if (!isOpenAiConfigured) {
-    throw new Error("Brakuje EXPO_PUBLIC_OPENAI_API_KEY.");
-  }
-
   const prevItems =
     previous.items.map((i) => `${i.name} ${round(i.weight_g)}g`).join(", ") || "brak skladnikow";
 
-  const refineText = `Poprzednia analiza: ${previous.dish_name} — ${prevItems} (lacznie ~${round(
+  const refineText = `Poprzednia analiza (z poprawkami uzytkownika): ${previous.dish_name} — ${prevItems} (lacznie ~${round(
     previous.total_weight_g,
   )}g, ${round(previous.protein_g)}B/${round(previous.carbs_g)}W/${round(previous.fat_g)}T).
 
@@ -306,5 +279,5 @@ KOREKTA UZYTKOWNIKA (nadrzedna nad poprzednia analiza): "${userContext.trim()}"
 
 Przelicz makro od nowa skladnik po skladniku, uwzgledniajac korekte i zdjecie. Zwroc poprawiony JSON.`;
 
-  return callOpenAi(refineText, base64, mimeType);
+  return callGemini(refineText, base64, mimeType);
 };

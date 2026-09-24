@@ -22,7 +22,7 @@ import { calculateMealMacros, totalsToPer100g } from "../core/macroCalculator";
 import type { MealDraft, VisionItem, VisionMealResult } from "../data/types";
 import { getDeveloperSettings } from "../data/developerRepository";
 import { useMeals } from "../providers/MealsProvider";
-import { analyzeMealPhoto, refineMealAnalysis } from "../services/gptVisionService";
+import { analyzeMealPhoto, refineMealAnalysis } from "../services/visionService";
 import { colors } from "../theme/colors";
 import { typography } from "../theme/typography";
 
