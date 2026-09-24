@@ -10,6 +10,7 @@ import { Icon } from "../components/Icon";
 import type { IconName } from "../components/Icon";
 import { Screen } from "../components/Screen";
 import { calculateKcal, round } from "../core/macroCalculator";
+import { formatDecimal } from "../core/numberFormat";
 import { exportDaysCsv, exportMealsCsv } from "../data/csvExport";
 import {
   CUSTOM_PRODUCTS_KEY,
@@ -166,11 +167,11 @@ export const ProfileScreen = () => {
 
   const weightKg = latestWeight ?? profile?.weightKg ?? null;
   const dataRows: Array<[string, string]> = [
-    ["Waga", weightKg ? `${round(weightKg, 1)} kg` : "brak"],
+    ["Waga", weightKg ? `${formatDecimal(weightKg, 1)} kg` : "brak"],
     ["Wzrost", profile?.heightCm ? `${round(profile.heightCm)} cm` : "brak"],
     ["Wiek", profile?.age ? `${round(profile.age)} lat` : "brak"],
     ["Cel", profile?.goalType
-      ? `${GOAL_LABEL[profile.goalType]}${profile.targetWeightKg ? ` do ${round(profile.targetWeightKg, 1)} kg` : ""}`
+      ? `${GOAL_LABEL[profile.goalType]}${profile.targetWeightKg ? ` do ${formatDecimal(profile.targetWeightKg, 1)} kg` : ""}`
       : "brak"],
     ["Aktywność", profile?.activityLevel ? ACTIVITY_LABEL[profile.activityLevel] : "brak"],
   ];

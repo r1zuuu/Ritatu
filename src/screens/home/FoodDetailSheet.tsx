@@ -15,7 +15,7 @@ function MacroTile({ label, value, color }: { label: string; value: number; colo
   return (
     <View style={s.macroTile}>
       <View style={[s.macroLine, { backgroundColor: color }]} />
-      <Text style={s.macroValue}>{value} g</Text>
+      <Text style={s.macroValue}>{formatDecimal(value, 1)} g</Text>
       <Text style={s.macroLabel}>{label}</Text>
     </View>
   );
