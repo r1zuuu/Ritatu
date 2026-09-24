@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "../theme/colors";
+import { radius } from "../theme/layout";
 import { typography } from "../theme/typography";
 
 export type Segment<T extends string> = {
@@ -11,26 +12,31 @@ type SegmentedControlProps<T extends string> = {
   items: Segment<T>[];
   value: T;
   onChange: (value: T) => void;
+  disabled?: boolean;
 };
 
+// The one control for "pick one of a few": sheet tabs, meal section, photo
+// angle. A raised segment on a sunken track, like the platform control.
 export const SegmentedControl = <T extends string>({
   items,
   value,
   onChange,
+  disabled = false,
 }: SegmentedControlProps<T>) => (
-  <View style={styles.wrap}>
+  <View style={styles.wrap} accessibilityRole="tablist">
     {items.map((item) => {
       const active = item.value === value;
       return (
         <Pressable
-          accessibilityRole="button"
+          accessibilityRole="tab"
           accessibilityLabel={item.label}
-          accessibilityState={{ selected: active }}
+          accessibilityState={{ selected: active, disabled }}
+          disabled={disabled}
           key={item.value}
           onPress={() => onChange(item.value)}
-          style={[styles.item, active && styles.active]}
+          style={({ pressed }) => [styles.item, active && styles.active, pressed && !active && styles.pressed]}
         >
-          <Text style={[styles.label, active && styles.activeLabel]}>{item.label}</Text>
+          <Text numberOfLines={1} style={[styles.label, active && styles.activeLabel]}>{item.label}</Text>
         </Pressable>
       );
     })}
@@ -39,29 +45,31 @@ export const SegmentedControl = <T extends string>({
 
 const styles = StyleSheet.create({
   wrap: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.control,
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+    gap: 4,
+    padding: 4,
   },
   item: {
-    minHeight: 44,
-    borderRadius: 14,
-    paddingHorizontal: 12,
     alignItems: "center",
+    borderRadius: 10,
+    flex: 1,
     justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    minHeight: 38,
+    paddingHorizontal: 6,
   },
   active: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
+    backgroundColor: colors.elevated,
+    borderColor: colors.borderMid,
+    borderWidth: 1,
   },
+  pressed: { opacity: 0.6 },
   label: {
-    color: colors.text,
     ...typography.label,
+    color: colors.mutedMid,
   },
   activeLabel: {
-    color: colors.warmBlack,
+    color: colors.text,
   },
 });

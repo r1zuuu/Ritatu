@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -19,6 +19,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { typography } from "../theme/typography";
 import { Icon } from "./Icon";
@@ -32,22 +33,33 @@ type SheetProps = {
   onClose: () => void;
   title?: string;
   children: ReactNode;
-  height?: DimensionValue;
+  // Fixed height, or `fit` to size to the content (up to 92% of the screen).
+  height?: DimensionValue | "fit";
 };
 
 export const Sheet = ({ visible, onClose, title, children, height = "88%" }: SheetProps) => {
   const { height: screenH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const translateY = useSharedValue(screenH);
   const bdOpacity = useSharedValue(0);
   const [mounted, setMounted] = useState(false);
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
+
+  // Reopened while the close animation was still running: stay mounted.
+  const finishClose = () => { if (!visibleRef.current) setMounted(false); };
 
   useEffect(() => {
     if (visible) {
+      if (mounted) {
+        translateY.value = withSpring(0, OPEN);
+        bdOpacity.value = withTiming(1, { duration: 280, easing: Easing.out(Easing.quad) });
+      }
       setMounted(true);
     } else if (mounted) {
       translateY.value = withSpring(screenH, CLOSE);
       bdOpacity.value = withTiming(0, { duration: 220, easing: Easing.out(Easing.quad) }, () => {
-        runOnJS(setMounted)(false);
+        runOnJS(finishClose)();
       });
     }
   }, [visible]);
@@ -84,10 +96,16 @@ export const Sheet = ({ visible, onClose, title, children, height = "88%" }: She
         </Animated.View>
         <KeyboardAvoidingView
           style={s.flex}
-          pointerEvents="box-none"
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <Animated.View style={[s.surface, { height }, sheetStyle]}>
+          <Animated.View
+            style={[
+              s.surface,
+              height === "fit" ? { maxHeight: "92%" } : { height },
+              { paddingBottom: insets.bottom },
+              sheetStyle,
+            ]}
+          >
             <View style={s.handle} />
             {title ? (
               <View style={s.titleRow}>
@@ -95,6 +113,7 @@ export const Sheet = ({ visible, onClose, title, children, height = "88%" }: She
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Zamknij"
+                  hitSlop={6}
                   style={({ pressed }) => [s.close, pressed && s.closePr]}
                   onPress={close}
                 >
@@ -113,7 +132,7 @@ export const Sheet = ({ visible, onClose, title, children, height = "88%" }: She
 const s = StyleSheet.create({
   root: { flex: 1 },
   backdrop: { backgroundColor: "#000" },
-  flex: { flex: 1, justifyContent: "flex-end" },
+  flex: { flex: 1, justifyContent: "flex-end", pointerEvents: "box-none" },
   surface: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
@@ -138,14 +157,14 @@ const s = StyleSheet.create({
     paddingBottom: 14,
     paddingHorizontal: 20,
   },
-  titleText: { ...typography.section, color: colors.text },
+  titleText: { ...typography.section, color: colors.text, flex: 1 },
   close: {
     alignItems: "center",
     backgroundColor: colors.card,
-    borderRadius: 10,
-    height: 34,
+    borderRadius: 19,
+    height: 38,
     justifyContent: "center",
-    width: 34,
+    width: 38,
   },
   closePr: { opacity: 0.7, transform: [{ scale: 0.95 }] },
 });

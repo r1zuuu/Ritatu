@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MacroConfirmSheet } from "../../components/MacroConfirmSheet";
@@ -127,6 +127,25 @@ export const HomeScreen = () => {
     setEditingMeal(null);
   }, [editingMeal, meals, selectedDate, user]);
 
+  // Memoized: the sheet resets its fields whenever the draft object changes,
+  // so a fresh literal per render wiped the weight the user was typing.
+  const editDraft = useMemo<MealDraft | null>(
+    () =>
+      editingMeal
+        ? {
+            name: editingMeal.name,
+            weightG: editingMeal.weightG,
+            proteinPer100g: editingMeal.proteinPer100g,
+            carbsPer100g: editingMeal.carbsPer100g,
+            fatPer100g: editingMeal.fatPer100g,
+            kcalPer100g: editingMeal.kcalPer100g,
+            source: editingMeal.source,
+            section: editingMeal.section,
+          }
+        : null,
+    [editingMeal],
+  );
+
   return (
     <View style={[home.wrap, { paddingTop: insets.top }]}>
       <DiaryView
@@ -198,16 +217,7 @@ export const HomeScreen = () => {
 
       <MacroConfirmSheet
         visible={editingMeal !== null}
-        draft={editingMeal ? {
-          name: editingMeal.name,
-          weightG: editingMeal.weightG,
-          proteinPer100g: editingMeal.proteinPer100g,
-          carbsPer100g: editingMeal.carbsPer100g,
-          fatPer100g: editingMeal.fatPer100g,
-          kcalPer100g: editingMeal.kcalPer100g,
-          source: editingMeal.source,
-          section: editingMeal.section,
-        } : null}
+        draft={editDraft}
         editingMealId={editingMeal?.id}
         onClose={() => setEditingMeal(null)}
         onConfirm={handleEditMealSave}

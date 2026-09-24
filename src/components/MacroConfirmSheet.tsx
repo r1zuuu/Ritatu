@@ -1,32 +1,41 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { calculateKcal, calculateMealMacros, round, totalsToPer100g } from "../core/macroCalculator";
-import { SECTIONS, getSectionByTime } from "../core/section";
-import type { Section } from "../core/section";
-import type { MealDraft, VisionItem } from "../data/types";
+import { parseDecimal } from "../core/numberFormat";
+import { SECTIONS, getSectionByTime, isSection, type Section } from "../core/section";
+import type { Confidence, MealDraft, VisionItem } from "../data/types";
 import { colors } from "../theme/colors";
-import { typography } from "../theme/typography";
+import { radius, space } from "../theme/layout";
+import { fontFamilies, typography } from "../theme/typography";
 import { Button } from "./Button";
-import { TextField } from "./TextField";
+import { Icon } from "./Icon";
+import { SegmentedControl } from "./SegmentedControl";
+import { Sheet } from "./Sheet";
+
+export type RefineInput = { items: VisionItem[]; section: Section };
 
 type MacroConfirmSheetProps = {
   visible: boolean;
   draft: MealDraft | null;
-  // Tryb "zdjęcie": edytowalna lista składników. Nieobecne = tryb gramatury.
+  // Photo mode: an editable ingredient list. Absent = a single weight field.
   items?: VisionItem[];
   warning?: string | null;
   onClose: () => void;
   onConfirm: (draft: MealDraft) => Promise<void>;
-  onRefine?: (userContext: string) => Promise<void>;
+  // Gets the list as the user edited it, so a refine never undoes their fixes.
+  onRefine?: (userContext: string, current: RefineInput) => Promise<void>;
   onDelete?: () => Promise<void>;
   editingMealId?: string;
 };
 
-const toNumber = (value: string) => Number(value.replace(",", "."));
+const CONFIDENCE: Record<Confidence, { label: string; color: string }> = {
+  low: { label: "Pewność AI: niska", color: colors.danger },
+  medium: { label: "Pewność AI: średnia", color: colors.carbs },
+  high: { label: "Pewność AI: wysoka", color: colors.green },
+};
 
-// Reprezentacja składnika w edytorze: makra per 100g są stałe (z modelu),
-// zmienna jest tylko waga (weightText). Makra liczymy z per100g * waga/100,
-// więc edycja wagi nigdy nie rozjeżdża makr.
+// Per-100 g macros are fixed per ingredient (from the model); only the weight
+// changes, so editing grams never skews the macros.
 type EditItem = {
   name: string;
   weightText: string;
@@ -46,6 +55,20 @@ const toEditItem = (it: VisionItem): EditItem => {
   };
 };
 
+const itemTotals = (it: EditItem) => {
+  const w = parseDecimal(it.weightText);
+  const grams = Number.isFinite(w) && w > 0 ? w : 0;
+  const f = grams / 100;
+  return { grams, proteinG: it.proteinPer100g * f, carbsG: it.carbsPer100g * f, fatG: it.fatPer100g * f };
+};
+
+const toVisionItem = (it: EditItem): VisionItem => {
+  const t = itemTotals(it);
+  return { name: it.name, weight_g: t.grams, protein_g: t.proteinG, carbs_g: t.carbsG, fat_g: t.fatG };
+};
+
+const sectionItems = SECTIONS.map((s) => ({ label: s, value: s }));
+
 export const MacroConfirmSheet = ({
   visible,
   draft,
@@ -59,361 +82,408 @@ export const MacroConfirmSheet = ({
 }: MacroConfirmSheetProps) => {
   const isEditing = Boolean(editingMealId);
   const itemsMode = items !== undefined;
+  const quickMode = !itemsMode && draft?.source === "quick";
 
-  const [weight, setWeight] = useState(String(draft?.weightG ?? 100));
-  const [editItems, setEditItems] = useState<EditItem[]>(() => (items ? items.map(toEditItem) : []));
-  const [section, setSection] = useState<Section>(
-    (draft?.section as Section | null | undefined) ?? getSectionByTime(),
-  );
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [name, setName] = useState("");
+  const [weight, setWeight] = useState("100");
+  const [kcalText, setKcalText] = useState("");
+  const [editItems, setEditItems] = useState<EditItem[]>([]);
+  const [section, setSection] = useState<Section>(getSectionByTime());
+  const [busy, setBusy] = useState<"save" | "delete" | "refine" | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [refineOpen, setRefineOpen] = useState(false);
   const [refineText, setRefineText] = useState("");
-  const [refining, setRefining] = useState(false);
 
+  // Reset whenever a new draft arrives (parents memoize it, so a re-render
+  // does not wipe what the user typed).
   useEffect(() => {
-    setWeight(String(draft?.weightG ?? 100));
+    setName(draft?.name ?? "");
+    setWeight(String(round(draft?.weightG ?? 100)));
+    setKcalText(draft ? String(round(calculateMealMacros(draft, draft.weightG).kcal)) : "");
     setEditItems(items ? items.map(toEditItem) : []);
-    setSection((draft?.section as Section | null | undefined) ?? getSectionByTime());
-    setSaving(false);
-    setDeleting(false);
+    setSection(isSection(draft?.section) ? draft.section : getSectionByTime());
+    setBusy(null);
+    setError(null);
     setRefineOpen(false);
     setRefineText("");
-    setRefining(false);
   }, [draft, items]);
 
   const macros = useMemo(() => {
     if (!draft) return null;
     if (itemsMode) {
-      const t = editItems.reduce(
-        (acc, it) => {
-          const w = toNumber(it.weightText);
-          const factor = Number.isFinite(w) && w > 0 ? w / 100 : 0;
-          return {
-            proteinG: acc.proteinG + it.proteinPer100g * factor,
-            carbsG: acc.carbsG + it.carbsPer100g * factor,
-            fatG: acc.fatG + it.fatPer100g * factor,
-            weightG: acc.weightG + (Number.isFinite(w) && w > 0 ? w : 0),
-          };
-        },
+      const t = editItems.map(itemTotals).reduce(
+        (acc, it) => ({
+          proteinG: acc.proteinG + it.proteinG,
+          carbsG: acc.carbsG + it.carbsG,
+          fatG: acc.fatG + it.fatG,
+          weightG: acc.weightG + it.grams,
+        }),
         { proteinG: 0, carbsG: 0, fatG: 0, weightG: 0 },
       );
       return { ...t, kcal: calculateKcal(t.proteinG, t.carbsG, t.fatG) };
     }
-    const w = toNumber(weight);
-    return { ...calculateMealMacros(draft, w), weightG: w };
-  }, [draft, itemsMode, editItems, weight]);
+    if (quickMode) {
+      const base = calculateMealMacros(draft, draft.weightG);
+      const kcal = parseDecimal(kcalText);
+      return { ...base, kcal: Number.isFinite(kcal) ? kcal : 0, weightG: draft.weightG };
+    }
+    const w = parseDecimal(weight);
+    return { ...calculateMealMacros(draft, Number.isFinite(w) ? w : 0), weightG: w };
+  }, [draft, editItems, itemsMode, kcalText, quickMode, weight]);
 
   if (!draft) return null;
 
-  const busy = saving || deleting || refining;
-  const canSave = itemsMode
-    ? editItems.length > 0 && !busy
-    : Number.isFinite(toNumber(weight)) && toNumber(weight) > 0 && !busy;
+  const numberOk = (text: string) => { const n = parseDecimal(text); return Number.isFinite(n) && n > 0; };
+  const canSave =
+    !busy &&
+    name.trim().length > 0 &&
+    (itemsMode ? editItems.length > 0 && (macros?.weightG ?? 0) > 0 : quickMode ? numberOk(kcalText) : numberOk(weight));
+
+  const run = async (kind: "save" | "delete" | "refine", action: () => Promise<void>) => {
+    setBusy(kind);
+    setError(null);
+    try {
+      await action();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Coś poszło nie tak. Spróbuj ponownie.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const save = () =>
+    run("save", async () => {
+      const base = { ...draft, name: name.trim(), section };
+      if (itemsMode && macros) {
+        await onConfirm({ ...base, ...totalsToPer100g(macros.weightG, macros.proteinG, macros.carbsG, macros.fatG) });
+      } else if (quickMode) {
+        // Quick entries store their kcal as "per 100 g" of a nominal 100 g portion.
+        await onConfirm({ ...base, kcalPer100g: (parseDecimal(kcalText) * 100) / (draft.weightG || 100) });
+      } else {
+        await onConfirm({ ...base, weightG: parseDecimal(weight) });
+      }
+    });
+
+  const refine = () =>
+    run("refine", async () => {
+      if (!onRefine) return;
+      await onRefine(refineText.trim(), { items: editItems.map(toVisionItem), section });
+    });
 
   const updateItemWeight = (index: number, text: string) =>
     setEditItems((prev) => prev.map((it, i) => (i === index ? { ...it, weightText: text } : it)));
+  const removeItem = (index: number) => setEditItems((prev) => prev.filter((_, i) => i !== index));
 
-  const removeItem = (index: number) =>
-    setEditItems((prev) => prev.filter((_, i) => i !== index));
+  // Share of energy per macro, for the proportion bar.
+  const energy = macros ? { p: macros.proteinG * 4, c: macros.carbsG * 4, f: macros.fatG * 9 } : null;
+  const energySum = energy ? energy.p + energy.c + energy.f : 0;
+  const confidence = !isEditing && draft.confidence ? CONFIDENCE[draft.confidence] : null;
 
   return (
-    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View
-        accessible
-        accessibilityLabel={isEditing ? "Edycja posiłku" : "Potwierdzenie posiłku"}
-        style={styles.sheet}
+    <Sheet
+      visible={visible}
+      onClose={busy ? () => {} : onClose}
+      title={isEditing ? "Edytujesz posiłek" : "Potwierdź posiłek"}
+      height={itemsMode ? "88%" : "fit"}
+    >
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={s.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.eyebrow}>{isEditing ? "Edytujesz posiłek" : "Potwierdź posiłek"}</Text>
-        <Text style={styles.title}>{draft.name}</Text>
-        {warning ? <Text style={styles.warning}>{warning}</Text> : null}
-        {draft.note ? <Text style={styles.note}>{draft.note}</Text> : null}
-        {!isEditing && draft.confidence ? (
-          <Text style={styles.note}>Pewność AI: {draft.confidence}</Text>
+        <TextInput
+          accessibilityLabel="Nazwa posiłku"
+          style={s.nameInput}
+          value={name}
+          onChangeText={setName}
+          editable={!busy}
+          multiline
+          blurOnSubmit
+          returnKeyType="done"
+        />
+
+        {confidence ? (
+          <View style={[s.chip, { backgroundColor: `${confidence.color}1F` }]}>
+            <View style={[s.chipDot, { backgroundColor: confidence.color }]} />
+            <Text style={[s.chipText, { color: confidence.color }]}>{confidence.label}</Text>
+          </View>
+        ) : null}
+        {draft.note ? <Text style={s.note}>{draft.note}</Text> : null}
+        {warning || error ? (
+          <View style={s.errorBox}>
+            <Icon name="alert" size={16} color={colors.danger} />
+            <Text style={s.errorText}>{error ?? warning}</Text>
+          </View>
         ) : null}
 
-        {/* Section picker */}
-        <View style={styles.sectionRow}>
-          {SECTIONS.map((s) => (
-            <Pressable
-              key={s}
-              style={({ pressed }) => [
-                styles.sectionChip,
-                section === s && styles.sectionChipActive,
-                pressed && { opacity: 0.7 },
-              ]}
-              onPress={() => setSection(s)}
-              disabled={busy}
-            >
-              <Text style={[styles.sectionChipLabel, section === s && styles.sectionChipLabelActive]}>
-                {s}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        {macros ? (
+          <View style={s.summary}>
+            <View style={s.kcalRow}>
+              <Text style={s.kcal}>{round(macros.kcal)}</Text>
+              <Text style={s.kcalUnit}>kcal{!quickMode ? ` · ${round(macros.weightG)} g` : ""}</Text>
+            </View>
+            {energySum > 0 && energy ? (
+              <View style={s.ratioBar}>
+                <View style={{ backgroundColor: colors.protein, flex: energy.p }} />
+                <View style={{ backgroundColor: colors.carbs, flex: energy.c }} />
+                <View style={{ backgroundColor: colors.fat, flex: energy.f }} />
+              </View>
+            ) : null}
+            <View style={s.macroRow}>
+              <Macro label="Białko" grams={macros.proteinG} color={colors.protein} />
+              <Macro label="Węglowodany" grams={macros.carbsG} color={colors.carbs} />
+              <Macro label="Tłuszcze" grams={macros.fatG} color={colors.fat} />
+            </View>
+          </View>
+        ) : null}
 
         {itemsMode ? (
-          <View style={styles.itemsList}>
+          <View style={s.items}>
+            <Text style={s.sectionLabel}>Składniki</Text>
             {editItems.length === 0 ? (
-              <Text style={styles.note}>Brak wykrytych składników.</Text>
+              <Text style={s.empty}>
+                AI nie rozpoznało składników. Popraw opis poniżej albo zrób nowe zdjęcie.
+              </Text>
             ) : (
-              editItems.map((it, index) => (
-                <View key={`${it.name}-${index}`} style={styles.itemRow}>
-                  <Text style={styles.itemName} numberOfLines={1}>
-                    {it.name}
-                  </Text>
-                  <View style={styles.itemWeight}>
-                    <TextInput
-                      style={styles.itemWeightInput}
-                      value={it.weightText}
-                      onChangeText={(t) => updateItemWeight(index, t)}
-                      keyboardType="decimal-pad"
-                      editable={!busy}
-                    />
-                    <Text style={styles.itemUnit}>g</Text>
+              editItems.map((it, index) => {
+                const t = itemTotals(it);
+                return (
+                  <View key={`${it.name}-${index}`} style={s.itemRow}>
+                    <View style={s.itemText}>
+                      <Text style={s.itemName} numberOfLines={2}>{it.name}</Text>
+                      <Text style={s.itemKcal}>{round(calculateKcal(t.proteinG, t.carbsG, t.fatG))} kcal</Text>
+                    </View>
+                    <View style={s.itemWeight}>
+                      <TextInput
+                        accessibilityLabel={`Gramatura: ${it.name}`}
+                        style={s.itemWeightInput}
+                        value={it.weightText}
+                        onChangeText={(text) => updateItemWeight(index, text)}
+                        keyboardType="decimal-pad"
+                        selectTextOnFocus
+                        editable={!busy}
+                      />
+                      <Text style={s.unit}>g</Text>
+                    </View>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Usuń ${it.name}`}
+                      hitSlop={8}
+                      disabled={Boolean(busy)}
+                      style={({ pressed }) => [s.itemRemove, pressed && s.pressed]}
+                      onPress={() => removeItem(index)}
+                    >
+                      <Icon name="x" size={18} color={colors.mutedMid} />
+                    </Pressable>
                   </View>
-                  <Pressable
-                    onPress={() => removeItem(index)}
-                    hitSlop={8}
-                    disabled={busy}
-                    style={({ pressed }) => [styles.itemRemove, pressed && { opacity: 0.5 }]}
-                    accessibilityLabel={`Usuń ${it.name}`}
-                  >
-                    <Text style={styles.itemRemoveText}>✕</Text>
-                  </Pressable>
-                </View>
-              ))
+                );
+              })
             )}
           </View>
         ) : (
-          <TextField
-            label="Gramatura (g)"
-            value={weight}
-            onChangeText={setWeight}
-            keyboardType="decimal-pad"
-          />
+          <View style={s.amountRow}>
+            <Text style={s.amountLabel}>{quickMode ? "Kalorie" : "Gramatura"}</Text>
+            <View style={s.amountField}>
+              <TextInput
+                accessibilityLabel={quickMode ? "Kalorie" : "Gramatura w gramach"}
+                style={s.amountInput}
+                value={quickMode ? kcalText : weight}
+                onChangeText={quickMode ? setKcalText : setWeight}
+                keyboardType="decimal-pad"
+                selectTextOnFocus
+                editable={!busy}
+              />
+              <Text style={s.unit}>{quickMode ? "kcal" : "g"}</Text>
+            </View>
+          </View>
         )}
 
-        {macros ? (
-          <View style={styles.preview}>
-            <Text style={styles.previewValue}>{round(macros.kcal)} kcal</Text>
-            <Text style={styles.previewMeta}>
-              B {round(macros.proteinG)} g · W {round(macros.carbsG)} g · T {round(macros.fatG)} g
-              {itemsMode ? ` · ${round(macros.weightG)} g` : ""}
-            </Text>
-          </View>
-        ) : null}
-
-        <View style={styles.actions}>
-          {isEditing && onDelete ? (
-            <Button
-              title={deleting ? "Usuwam..." : "Usuń"}
-              variant="secondary"
-              disabled={busy}
-              onPress={async () => {
-                setDeleting(true);
-                await onDelete();
-                setDeleting(false);
-              }}
-            />
-          ) : (
-            <Button title="Anuluj" variant="secondary" onPress={onClose} disabled={busy} />
-          )}
-          <Button
-            title={saving ? "Zapisuję..." : "Zapisz"}
-            disabled={!canSave}
-            onPress={async () => {
-              setSaving(true);
-              if (itemsMode && macros) {
-                const per100g = totalsToPer100g(
-                  macros.weightG,
-                  macros.proteinG,
-                  macros.carbsG,
-                  macros.fatG,
-                );
-                await onConfirm({ ...draft, ...per100g, section });
-              } else {
-                await onConfirm({ ...draft, weightG: toNumber(weight), section });
-              }
-              setSaving(false);
-            }}
-          />
-        </View>
+        <Text style={s.sectionLabel}>Posiłek</Text>
+        <SegmentedControl items={sectionItems} value={section} onChange={setSection} disabled={Boolean(busy)} />
 
         {onRefine ? (
           refineOpen ? (
-            <View style={styles.refineBox}>
-              <Text style={styles.refineLabel}>Co poprawić?</Text>
+            <View style={s.refineBox}>
+              <Text style={s.sectionLabelTight}>Co poprawić?</Text>
               <TextInput
-                style={styles.refineInput}
-                placeholder="np. za mało gramów, to był mały talerz"
+                accessibilityLabel="Co poprawić w analizie"
+                style={s.refineInput}
+                placeholder="np. to był mały talerz, ryżu ok. 150 g"
                 value={refineText}
                 onChangeText={setRefineText}
                 placeholderTextColor={colors.muted}
                 multiline
+                editable={busy !== "refine"}
               />
-              <View style={styles.refineActions}>
-                <Button
-                  title="Anuluj"
-                  variant="secondary"
-                  onPress={() => { setRefineOpen(false); setRefineText(""); }}
-                  disabled={refining}
-                />
-                <Button
-                  title={refining ? "Analizuję..." : "Popraw z AI"}
-                  disabled={!refineText.trim() || refining}
-                  onPress={async () => {
-                    setRefining(true);
-                    try {
-                      await onRefine(refineText.trim());
-                      setRefineOpen(false);
-                      setRefineText("");
-                    } finally {
-                      setRefining(false);
-                    }
-                  }}
-                />
+              <View style={s.row}>
+                <View style={s.flex}>
+                  <Button title="Anuluj" variant="ghost" disabled={busy === "refine"} onPress={() => { setRefineOpen(false); setRefineText(""); }} />
+                </View>
+                <View style={s.flex}>
+                  <Button title="Popraw z AI" icon="sparkles" variant="secondary" disabled={!refineText.trim() || Boolean(busy)} onPress={() => void refine()} />
+                </View>
               </View>
-              {refining ? (
-                <View style={styles.refineLoading}>
+              {busy === "refine" ? (
+                <View style={s.refineLoading}>
                   <ActivityIndicator size="small" color={colors.accent} />
-                  <Text style={styles.refineLoadingText}>AI analizuje ponownie...</Text>
+                  <Text style={s.refineLoadingText}>AI przelicza posiłek...</Text>
                 </View>
               ) : null}
             </View>
           ) : (
             <Pressable
-              style={({ pressed }) => [styles.refineHint, pressed && { opacity: 0.7 }]}
+              accessibilityRole="button"
+              style={({ pressed }) => [s.refineHint, pressed && s.pressed]}
               onPress={() => setRefineOpen(true)}
-              disabled={busy}
+              disabled={Boolean(busy)}
             >
-              <Text style={styles.refineHintText}>Wynik nieprecyzyjny? Popraw z AI →</Text>
+              <Icon name="sparkles" size={16} color={colors.accent} />
+              <Text style={s.refineHintText}>Wynik nieprecyzyjny? Popraw z AI</Text>
             </Pressable>
           )
         ) : null}
+
+        {isEditing && onDelete ? (
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [s.deleteRow, pressed && s.pressed]}
+            disabled={Boolean(busy)}
+            onPress={() => void run("delete", onDelete)}
+          >
+            <Icon name="trash" size={18} color={colors.danger} />
+            <Text style={s.deleteText}>{busy === "delete" ? "Usuwam..." : "Usuń posiłek"}</Text>
+          </Pressable>
+        ) : null}
+      </ScrollView>
+
+      <View style={s.footer}>
+        <View style={s.flex}>
+          <Button title="Anuluj" variant="secondary" onPress={onClose} disabled={Boolean(busy)} />
+        </View>
+        <View style={s.flex}>
+          <Button title={busy === "save" ? "Zapisuję..." : "Zapisz"} icon="check" disabled={!canSave} onPress={() => void save()} />
+        </View>
       </View>
-    </Modal>
+    </Sheet>
   );
 };
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 20,
-    gap: 14,
-  },
-  eyebrow: {
-    color: colors.muted,
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  title: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: "900",
-  },
-  warning: { color: colors.danger, fontWeight: "800" },
-  note: { color: colors.muted, fontWeight: "700" },
+function Macro({ label, grams, color }: { label: string; grams: number; color: string }) {
+  return (
+    <View style={s.macro}>
+      <View style={s.macroHead}>
+        <View style={[s.macroDot, { backgroundColor: color }]} />
+        <Text style={s.macroLabel}>{label}</Text>
+      </View>
+      <Text style={s.macroValue}>{round(grams)} g</Text>
+    </View>
+  );
+}
 
-  sectionRow: {
+const s = StyleSheet.create({
+  scroll: { flexShrink: 1 },
+  content: { gap: space.md, paddingBottom: space.lg, paddingHorizontal: space.xl },
+  flex: { flex: 1 },
+  row: { flexDirection: "row", gap: 10 },
+  pressed: { opacity: 0.6 },
+
+  nameInput: { ...typography.headline, color: colors.text, padding: 0 },
+  chip: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    borderRadius: radius.pill,
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  sectionChip: {
-    borderColor: colors.border,
-    borderRadius: 20,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  chipDot: { borderRadius: 3, height: 6, width: 6 },
+  chipText: { ...typography.micro },
+  note: { ...typography.caption, color: colors.mutedMid },
+  errorBox: {
+    alignItems: "center",
+    backgroundColor: colors.dangerA,
+    borderRadius: radius.control,
+    flexDirection: "row",
+    gap: 8,
+    padding: 12,
   },
-  sectionChipActive: {
-    backgroundColor: colors.accentA,
-    borderColor: colors.accent,
-  },
-  sectionChipLabel: {
-    ...typography.label,
-    color: colors.muted,
-    fontSize: 12,
-  },
-  sectionChipLabelActive: {
-    color: colors.accent,
-  },
+  errorText: { ...typography.caption, color: colors.text, flex: 1 },
 
-  itemsList: { gap: 8 },
+  summary: { backgroundColor: colors.card, borderRadius: radius.lg, gap: 12, padding: space.lg },
+  kcalRow: { alignItems: "baseline", flexDirection: "row", gap: 8 },
+  kcal: { ...typography.display, color: colors.text, fontSize: 40, lineHeight: 44 },
+  kcalUnit: { ...typography.label, color: colors.mutedMid },
+  ratioBar: { borderRadius: 4, flexDirection: "row", gap: 2, height: 8, overflow: "hidden" },
+  macroRow: { flexDirection: "row", gap: 8 },
+  macro: { flex: 1, gap: 2 },
+  macroHead: { alignItems: "center", flexDirection: "row", gap: 5 },
+  macroDot: { borderRadius: 3, height: 6, width: 6 },
+  macroLabel: { ...typography.micro, color: colors.mutedMid },
+  macroValue: { ...typography.label, color: colors.text, fontSize: 15, fontVariant: ["tabular-nums"] },
+
+  sectionLabel: { ...typography.stat, color: colors.mutedMid, marginTop: 4 },
+  sectionLabelTight: { ...typography.stat, color: colors.mutedMid },
+  items: { gap: 8 },
+  empty: { ...typography.caption, color: colors.mutedMid },
   itemRow: {
     alignItems: "center",
     backgroundColor: colors.card,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: radius.control,
     borderWidth: 1,
     flexDirection: "row",
     gap: 10,
-    paddingHorizontal: 12,
+    paddingLeft: 14,
+    paddingRight: 6,
     paddingVertical: 8,
   },
-  itemName: { ...typography.body, color: colors.text, flex: 1 },
-  itemWeight: { alignItems: "center", flexDirection: "row", gap: 3 },
+  itemText: { flex: 1, gap: 2 },
+  itemName: { ...typography.body, color: colors.text },
+  itemKcal: { ...typography.micro, color: colors.mutedMid },
+  itemWeight: { alignItems: "center", flexDirection: "row", gap: 4 },
   itemWeightInput: {
     ...typography.body,
     backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 8,
+    borderColor: colors.borderMid,
+    borderRadius: 10,
     borderWidth: 1,
     color: colors.text,
-    minWidth: 56,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    fontVariant: ["tabular-nums"],
+    minWidth: 62,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     textAlign: "right",
   },
-  itemUnit: { ...typography.label, color: colors.muted },
-  itemRemove: { paddingHorizontal: 4, paddingVertical: 2 },
-  itemRemoveText: { color: colors.muted, fontSize: 16, fontWeight: "900" },
+  unit: { ...typography.label, color: colors.mutedMid },
+  itemRemove: { alignItems: "center", height: 40, justifyContent: "center", width: 36 },
 
-  preview: {
-    borderRadius: 8,
-    backgroundColor: colors.surfaceAlt,
-    padding: 14,
-    gap: 4,
-  },
-  previewValue: { color: colors.text, fontSize: 24, fontWeight: "900" },
-  previewMeta: { color: colors.muted, fontWeight: "800" },
-
-  actions: { flexDirection: "row", gap: 10 },
-
-  refineHint: { alignSelf: "center", paddingVertical: 6 },
-  refineHintText: { color: colors.accent, fontSize: 13, fontWeight: "600" },
-  refineBox: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderRadius: 14,
-    borderWidth: 1,
-    gap: 10,
-    padding: 14,
-  },
-  refineLabel: {
-    color: colors.mutedMid,
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-  },
-  refineActions: { flexDirection: "row", gap: 10 },
-  refineLoading: {
+  amountRow: {
     alignItems: "center",
+    backgroundColor: colors.card,
+    borderRadius: radius.control,
     flexDirection: "row",
-    gap: 8,
-    justifyContent: "center",
-    paddingVertical: 4,
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  refineLoadingText: { color: colors.muted, fontSize: 13 },
+  amountLabel: { ...typography.label, color: colors.mutedMid, fontSize: 14 },
+  amountField: { alignItems: "center", flexDirection: "row", gap: 6 },
+  amountInput: {
+    color: colors.text,
+    fontFamily: fontFamilies.semibold,
+    fontSize: 24,
+    fontVariant: ["tabular-nums"],
+    minWidth: 72,
+    paddingVertical: 4,
+    textAlign: "right",
+  },
+
+  refineHint: { alignItems: "center", alignSelf: "center", flexDirection: "row", gap: 6, minHeight: 44 },
+  refineHintText: { ...typography.label, color: colors.accent, fontSize: 13 },
+  refineBox: { backgroundColor: colors.card, borderColor: colors.border, borderRadius: radius.control, borderWidth: 1, gap: 10, padding: 14 },
   refineInput: {
     ...typography.body,
     backgroundColor: colors.surface,
@@ -424,5 +494,20 @@ const styles = StyleSheet.create({
     minHeight: 72,
     padding: 12,
     textAlignVertical: "top",
+  },
+  refineLoading: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "center", paddingVertical: 4 },
+  refineLoadingText: { ...typography.caption, color: colors.mutedMid },
+
+  deleteRow: { alignItems: "center", alignSelf: "center", flexDirection: "row", gap: 6, minHeight: 44, paddingHorizontal: 12 },
+  deleteText: { ...typography.label, color: colors.danger, fontSize: 14 },
+
+  footer: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: space.xl,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
 });
