@@ -14,6 +14,7 @@ import { radius, space } from "../../theme/layout";
 import { typography } from "../../theme/typography";
 import { angleLabel } from "./AddProgressPhotoSheet";
 import { DaysCalendar } from "./DaysCalendar";
+import { WeightChart } from "./WeightChart";
 
 const HISTORY_PREVIEW = 5;
 
@@ -31,71 +32,6 @@ function StatCard({ label, value, color }: { label: string; value: string; color
       <Text style={s.statLabel}>{label}</Text>
       <Text style={[s.statValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
     </Card>
-  );
-}
-
-function TrendSegment({ from, to }: { from: { x: number; y: number }; to: { x: number; y: number } }) {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const length = Math.sqrt(dx * dx + dy * dy);
-  const angle = `${Math.atan2(dy, dx)}rad`;
-  return (
-    <View
-      style={[
-        trend.segment,
-        { left: (from.x + to.x) / 2 - length / 2, top: (from.y + to.y) / 2 - 1.5, transform: [{ rotate: angle }], width: length },
-      ]}
-    />
-  );
-}
-
-function WeightTrendChart({ data }: { data: WeightEntry[] }) {
-  const { width } = useWindowDimensions();
-  const chartWidth = Math.min(360, width - 72);
-  const chartHeight = 150;
-  const pad = { top: 18, right: 18, bottom: 28, left: 34 };
-
-  const values = data.map((item) => item.weightKg);
-  const min = Math.min(...values) - 0.5;
-  const max = Math.max(...values) + 0.5;
-  const range = max - min || 1;
-  const innerW = chartWidth - pad.left - pad.right;
-  const innerH = chartHeight - pad.top - pad.bottom;
-  const x = (index: number) => pad.left + (data.length === 1 ? innerW / 2 : (index / (data.length - 1)) * innerW);
-  const y = (value: number) => pad.top + innerH - ((value - min) / range) * innerH;
-  const points = data.map((item, index) => ({ x: x(index), y: y(item.weightKg), item }));
-  // First, middle and last date only: every other label overlapped past ~10 points.
-  const labelIdx = new Set([0, Math.floor((points.length - 1) / 2), points.length - 1]);
-
-  return (
-    <View style={[trend.wrap, { height: chartHeight, width: chartWidth }]}>
-      {[0.25, 0.5, 0.75].map((factor) => (
-        <View key={factor} style={[trend.gridLine, { left: pad.left, top: pad.top + innerH * factor, width: innerW }]} />
-      ))}
-      <Text style={[trend.yLabel, { top: pad.top - 7 }]}>{formatDecimal(max - 0.5, 1)}</Text>
-      <Text style={[trend.yLabel, { top: pad.top + innerH - 7 }]}>{formatDecimal(min + 0.5, 1)}</Text>
-      {points.slice(0, -1).map((point, index) => (
-        <TrendSegment key={`${point.item.id}-seg`} from={point} to={points[index + 1]} />
-      ))}
-      {points.map((point, index) => {
-        const last = index === points.length - 1;
-        return (
-          <View
-            key={point.item.id}
-            style={[trend.dot, last && trend.dotLast, { left: point.x - (last ? 6 : 4), top: point.y - (last ? 6 : 4) }]}
-          />
-        );
-      })}
-      {points.filter((_, i) => labelIdx.has(i)).map((point) => (
-        <Text
-          key={`${point.item.id}-lbl`}
-          numberOfLines={1}
-          style={[trend.axisLabel, { left: Math.max(0, Math.min(chartWidth - 58, point.x - 29)), top: chartHeight - 18 }]}
-        >
-          {formatDDMM(parseDate(point.item.date))}
-        </Text>
-      ))}
-    </View>
   );
 }
 
@@ -119,6 +55,7 @@ export const MeasurementsView = ({
   onDeletePhoto,
 }: Props) => {
   const [showAllHistory, setShowAllHistory] = useState(false);
+  const { width } = useWindowDimensions();
   const current = weights.at(-1);
   const start = weights.at(0);
   const delta = current && start ? Number((current.weightKg - start.weightKg).toFixed(1)) : 0;
@@ -164,7 +101,7 @@ export const MeasurementsView = ({
                   <Text style={s.addButtonText}>Pomiar</Text>
                 </Pressable>
               </View>
-              {hasTrend ? <WeightTrendChart data={weights} /> : null}
+              {hasTrend ? <WeightChart data={weights} target={target} width={width - space.xl * 2 - space.lg * 2} /> : null}
             </>
           ) : (
             <View style={s.emptyWeight}>
@@ -327,14 +264,4 @@ const s = StyleSheet.create({
     gap: 8,
     padding: 24,
   },
-});
-
-const trend = StyleSheet.create({
-  wrap: { alignSelf: "center", overflow: "hidden", position: "relative" },
-  gridLine: { backgroundColor: colors.border, height: 1, opacity: 0.85, position: "absolute" },
-  yLabel: { ...typography.micro, color: colors.muted, left: 0, position: "absolute", width: 30 },
-  segment: { backgroundColor: colors.accent, borderRadius: 999, height: 3, opacity: 0.92, position: "absolute" },
-  dot: { backgroundColor: colors.card, borderColor: colors.accent, borderRadius: 999, borderWidth: 2, height: 8, position: "absolute", width: 8 },
-  dotLast: { backgroundColor: colors.accent, height: 12, width: 12 },
-  axisLabel: { ...typography.micro, color: colors.mutedMid, position: "absolute", textAlign: "center", width: 58 },
 });
