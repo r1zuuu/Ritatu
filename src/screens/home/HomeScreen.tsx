@@ -1,32 +1,24 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MacroConfirmSheet } from "../../components/MacroConfirmSheet";
 import { toDateKey } from "../../core/date";
 import { getSectionByTime, isSection, type Section } from "../../core/section";
 import { cacheMealsForDay, getCachedMealsForDay } from "../../data/mealRepository";
-import { deleteProgressPhoto, getProgressPhotos, saveProgressPhotos } from "../../data/progressPhotoRepository";
-import type { MealDraft, MealEntry, ProgressPhoto, WeightEntry } from "../../data/types";
+import type { MealDraft, MealEntry } from "../../data/types";
 import { CUSTOM_PRODUCTS_KEY } from "../../data/developerRepository";
-import { getWeights, saveWeights as persistWeights } from "../../data/weightRepository";
 import { useAuth } from "../../providers/AuthProvider";
 import { useMeals } from "../../providers/MealsProvider";
 import { useUserProfile } from "../../providers/UserProfileProvider";
 import { colors } from "../../theme/colors";
-import { sh } from "../../theme/sharedStyles";
 import { AddFoodSheet } from "./AddFoodSheet";
-import { AddProgressPhotoSheet } from "./AddProgressPhotoSheet";
-import { AddWeightSheet } from "./AddWeightSheet";
 import { CreateCustomSheet } from "./CreateCustomSheet";
 import { DiaryView } from "./DiaryView";
 import { FoodDetailSheet } from "./FoodDetailSheet";
-import { MeasurementsView } from "./MeasurementsView";
 import { QuickAddSheet } from "./QuickAddSheet";
 import type { FoodItem } from "./types";
-
-type HomeTab = "diary" | "measurements";
 
 export const HomeScreen = () => {
   const { user } = useAuth();
@@ -34,10 +26,7 @@ export const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const { dateOffset, setDateOffset, selectedDate, addMeal } = useMeals();
   const selectedKey = toDateKey(selectedDate);
-  const [tab, setTab] = useState<HomeTab>("diary");
   const [meals, setMeals] = useState<MealEntry[]>([]);
-  const [weights, setWeights] = useState<WeightEntry[]>([]);
-  const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
   const [customProducts, setCustomProducts] = useState<FoodItem[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [addFoodSection, setAddFoodSection] = useState<Section | null>(null);
@@ -45,8 +34,6 @@ export const HomeScreen = () => {
   const [showCreateCustom, setShowCreateCustom] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddSection, setQuickAddSection] = useState<Section | null>(null);
-  const [showAddWeight, setShowAddWeight] = useState(false);
-  const [showAddPhoto, setShowAddPhoto] = useState(false);
   const [editingMeal, setEditingMeal] = useState<MealEntry | null>(null);
   const lastAmountsRef = useRef<Map<string | number, string>>(new Map());
   const { add } = useLocalSearchParams<{ add?: string }>();
@@ -72,16 +59,9 @@ export const HomeScreen = () => {
   );
 
   useEffect(() => {
-    void getWeights().then(setWeights);
-    void getProgressPhotos().then(setProgressPhotos);
     void AsyncStorage.getItem(CUSTOM_PRODUCTS_KEY).then((value) => {
       if (value) { try { setCustomProducts(JSON.parse(value) as FoodItem[]); } catch {} }
     });
-  }, []);
-
-  const saveWeights = useCallback(async (next: WeightEntry[]) => {
-    await persistWeights(next);
-    setWeights(next);
   }, []);
 
   const saveCustomProducts = useCallback(async (next: FoodItem[]) => {
@@ -147,73 +127,19 @@ export const HomeScreen = () => {
     setEditingMeal(null);
   }, [editingMeal, meals, selectedDate, user]);
 
-  const handleAddWeight = useCallback(async (kg: number) => {
-    const now = new Date();
-    const entry: WeightEntry = {
-      id: Date.now().toString(36),
-      date: toDateKey(now),
-      weightKg: kg,
-    };
-    await saveWeights([...weights, entry]);
-    setShowAddWeight(false);
-  }, [saveWeights, weights]);
-
-  const handleSavePhoto = useCallback(async (photo: ProgressPhoto) => {
-    const next = [photo, ...progressPhotos];
-    await saveProgressPhotos(next);
-    setProgressPhotos(next);
-  }, [progressPhotos]);
-
-  const handleDeletePhoto = useCallback(async (id: string) => {
-    const next = await deleteProgressPhoto(id);
-    setProgressPhotos(next);
-  }, []);
-
-  const currentDate = selectedDate;
-  const currentWeight = weights.at(-1)?.weightKg;
-
   return (
     <View style={[home.wrap, { paddingTop: insets.top }]}>
-      <View style={home.tabRow}>
-        {(["diary", "measurements"] as HomeTab[]).map((id) => {
-          const label = id === "diary" ? "Dziennik" : "Pomiary";
-          const active = tab === id;
-          return (
-            <Pressable
-              key={id}
-              style={({ pressed }) => [home.tabChip, active && home.tabChipActive, pressed && sh.pressed]}
-              onPress={() => setTab(id)}
-            >
-              <Text style={[home.tabChipLabel, active && home.tabChipLabelActive]}>{label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <View style={home.content}>
-        {tab === "diary" ? (
-          <DiaryView
-            meals={meals}
-            dateOffset={dateOffset}
-            currentDate={currentDate}
-            setDateOffset={setDateOffset}
-            profile={profile}
-            onAddFood={setAddFoodSection}
-            onRemoveMeal={handleRemoveMeal}
-            onMoveMeal={handleMoveMeal}
-            onEditMeal={setEditingMeal}
-          />
-        ) : (
-          <MeasurementsView
-            weights={weights}
-            profile={profile}
-            progressPhotos={progressPhotos}
-            onAddWeight={() => setShowAddWeight(true)}
-            onAddPhoto={() => setShowAddPhoto(true)}
-            onDeletePhoto={handleDeletePhoto}
-          />
-        )}
-      </View>
+      <DiaryView
+        meals={meals}
+        dateOffset={dateOffset}
+        currentDate={selectedDate}
+        setDateOffset={setDateOffset}
+        profile={profile}
+        onAddFood={setAddFoodSection}
+        onRemoveMeal={handleRemoveMeal}
+        onMoveMeal={handleMoveMeal}
+        onEditMeal={setEditingMeal}
+      />
 
       <AddFoodSheet
         visible={addFoodSection !== null}
@@ -270,20 +196,6 @@ export const HomeScreen = () => {
         }}
       />
 
-      <AddWeightSheet
-        visible={showAddWeight}
-        lastWeight={currentWeight}
-        onClose={() => setShowAddWeight(false)}
-        onSave={handleAddWeight}
-      />
-
-      <AddProgressPhotoSheet
-        visible={showAddPhoto}
-        currentWeight={currentWeight}
-        onClose={() => setShowAddPhoto(false)}
-        onSave={handleSavePhoto}
-      />
-
       <MacroConfirmSheet
         visible={editingMeal !== null}
         draft={editingMeal ? {
@@ -307,30 +219,4 @@ export const HomeScreen = () => {
 
 const home = StyleSheet.create({
   wrap: { backgroundColor: colors.background, flex: 1 },
-  content: { flex: 1 },
-  tabRow: {
-    flexDirection: "row",
-    gap: 8,
-    paddingBottom: 4,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-  },
-  tabChip: {
-    borderColor: colors.border,
-    borderRadius: 20,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-  },
-  tabChipActive: {
-    backgroundColor: colors.accentA,
-    borderColor: colors.accent,
-  },
-  tabChipLabel: {
-    color: colors.muted,
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 13,
-  },
-  tabChipLabelActive: { color: colors.accent },
 });
-

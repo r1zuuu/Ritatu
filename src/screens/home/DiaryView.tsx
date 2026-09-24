@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBar } from "../../components/AnimatedBar";
+import { FAB_CLEARANCE } from "../../components/BottomTabBar";
 import { Card } from "../../components/Card";
 import { IconButton } from "../../components/IconButton";
 import { Icon } from "../../components/Icon";
@@ -14,8 +14,6 @@ import { colors } from "../../theme/colors";
 import { radius, space } from "../../theme/layout";
 import { typography } from "../../theme/typography";
 import { sh } from "../../theme/sharedStyles";
-
-const TAB_BAR_HEIGHT = 68;
 
 const SECTION_COLORS: Record<Section, string> = {
   Śniadanie: colors.carbs,   // amber
@@ -66,7 +64,6 @@ type Props = {
 };
 
 export const DiaryView = ({ meals, dateOffset, currentDate, setDateOffset, profile, onAddFood, onRemoveMeal, onMoveMeal, onEditMeal }: Props) => {
-  const insets = useSafeAreaInsets();
   const [moveTarget, setMoveTarget] = useState<MealEntry | null>(null);
   const moveFromSection: Section = (SECTIONS as readonly Section[]).includes(moveTarget?.section as Section)
     ? (moveTarget!.section as Section)
@@ -100,7 +97,7 @@ export const DiaryView = ({ meals, dateOffset, currentDate, setDateOffset, profi
   return (
     <>
     <ScrollView
-      contentContainerStyle={[s.scroll, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]}
+      contentContainerStyle={[s.scroll, { paddingBottom: FAB_CLEARANCE }]}
       showsVerticalScrollIndicator={false}
     >
       {/* Date navigation */}

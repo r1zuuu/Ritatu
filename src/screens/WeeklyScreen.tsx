@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, {
   Easing,
@@ -8,8 +9,8 @@ import Animated, {
   withDelay,
   withTiming,
 } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBar } from "../components/AnimatedBar";
+import { FAB_CLEARANCE } from "../components/BottomTabBar";
 import { Card } from "../components/Card";
 import { Screen } from "../components/Screen";
 import { Icon } from "../components/Icon";
@@ -93,7 +94,6 @@ function MacroRow({ label, avg, goal, color, delay }: { label: string; avg: numb
 export const WeeklyScreen = () => {
   const { user } = useAuth();
   const { profile } = useUserProfile();
-  const insets = useSafeAreaInsets();
   const [days, setDays] = useState<DayData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -105,10 +105,11 @@ export const WeeklyScreen = () => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  useEffect(() => {
-    if (!user) return;
+  // The tab stays mounted, so reload on focus to pick up meals added elsewhere.
+  // The spinner shows only on the first load; later reloads swap data in place.
+  useFocusEffect(useCallback(() => {
+    let active = true;
     const load = async () => {
-      setLoading(true);
       const weekDays = getWeekDays(today);
       const results = await Promise.all(
         weekDays.map(async (date) => {
@@ -130,12 +131,14 @@ export const WeeklyScreen = () => {
           };
         }),
       );
+      if (!active) return;
       setDays(results);
       setLoading(false);
     };
     void load();
+    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid]);
+  }, [user.uid]));
 
   const weekDays    = getWeekDays(today);
   const activeDays  = days.filter((d) => !d.isFuture);
@@ -185,7 +188,7 @@ export const WeeklyScreen = () => {
   return (
     <Screen noBottomInset padded={false}>
       <ScrollView
-        contentContainerStyle={[s.scroll, { paddingBottom: 68 + insets.bottom + 24 }]}
+        contentContainerStyle={[s.scroll, { paddingBottom: FAB_CLEARANCE }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}

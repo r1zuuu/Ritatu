@@ -9,10 +9,10 @@ import {
 } from "@expo-google-fonts/inter";
 import { Barlow_300Light } from "@expo-google-fonts/barlow";
 import { MaterialSymbols_200ExtraLight } from "@expo-google-fonts/material-symbols";
-import { AuthProvider } from "../src/providers/AuthProvider";
 import { MealsProvider } from "../src/providers/MealsProvider";
 import { UserProfileProvider } from "../src/providers/UserProfileProvider";
 import { View } from "react-native";
+import { colors } from "../src/theme/colors";
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -24,21 +24,23 @@ export default function RootLayout() {
     MaterialSymbols_200ExtraLight,
   });
 
-  if (!fontsLoaded) return <View style={{ flex: 1, backgroundColor: "#111009" }} />;
+  if (!fontsLoaded) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
 
   return (
-    <AuthProvider>
-      <UserProfileProvider>
-        <MealsProvider>
-          <StatusBar style="light" />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index"   options={{ animation: "none" }} />
-            <Stack.Screen name="home"    options={{ animation: "none" }} />
-            <Stack.Screen name="weekly"  options={{ animation: "none" }} />
-            <Stack.Screen name="profile" options={{ animation: "none" }} />
-          </Stack>
-        </MealsProvider>
-      </UserProfileProvider>
-    </AuthProvider>
+    <UserProfileProvider>
+      <MealsProvider>
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            // Without it the first frame of every screen flashes the light default.
+            contentStyle: { backgroundColor: colors.background },
+          }}
+        >
+          <Stack.Screen name="index" options={{ animation: "none" }} />
+          <Stack.Screen name="(tabs)" options={{ animation: "none" }} />
+        </Stack>
+      </MealsProvider>
+    </UserProfileProvider>
   );
 }

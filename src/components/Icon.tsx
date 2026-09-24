@@ -6,6 +6,7 @@ export type IconName =
   | "apple"
   | "bar-chart"
   | "barcode"
+  | "calendar"
   | "camera"
   | "check"
   | "chevron-down"
@@ -15,6 +16,7 @@ export type IconName =
   | "alert"
   | "clipboard"
   | "dumbbell"
+  | "edit"
   | "flame"
   | "flash-on"
   | "flash-off"
@@ -23,6 +25,7 @@ export type IconName =
   | "info"
   | "logout"
   | "minus"
+  | "person"
   | "plus"
   | "reset"
   | "scan"
@@ -30,6 +33,7 @@ export type IconName =
   | "settings"
   | "sparkles"
   | "trash"
+  | "undo"
   | "upload"
   | "utensils"
   | "weight"
@@ -39,14 +43,14 @@ type IconProps = {
   name: IconName;
   size?: number;
   color?: string;
-  strokeWidth?: number;
 };
 
 const symbols: Record<IconName, string> = {
   activity: "monitoring",
   apple: "nutrition",
-  "bar-chart": "show_chart",
+  "bar-chart": "bar_chart",
   barcode: "barcode_scanner",
+  calendar: "calendar_month",
   camera: "photo_camera",
   check: "check",
   "chevron-down": "expand_more",
@@ -56,6 +60,7 @@ const symbols: Record<IconName, string> = {
   alert: "warning",
   clipboard: "assignment",
   dumbbell: "fitness_center",
+  edit: "edit",
   flame: "local_fire_department",
   "flash-on": "flashlight_on",
   "flash-off": "flashlight_off",
@@ -64,6 +69,7 @@ const symbols: Record<IconName, string> = {
   info: "info",
   logout: "logout",
   minus: "remove",
+  person: "person",
   plus: "add",
   reset: "refresh",
   scan: "document_scanner",
@@ -71,6 +77,7 @@ const symbols: Record<IconName, string> = {
   settings: "settings",
   sparkles: "auto_awesome",
   trash: "delete",
+  undo: "undo",
   upload: "ios_share",
   utensils: "restaurant",
   weight: "scale",

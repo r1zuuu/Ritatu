@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FAB_CLEARANCE } from "../components/BottomTabBar";
 import { Card } from "../components/Card";
 import { Icon } from "../components/Icon";
 import type { IconName } from "../components/Icon";
@@ -34,7 +34,6 @@ import { typography } from "../theme/typography";
 export const ProfileScreen = () => {
   const { user } = useAuth();
   const { profile, saveProfile } = useUserProfile();
-  const insets = useSafeAreaInsets();
   const [settings, setSettings] = useState<DeveloperSettings | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -124,9 +123,9 @@ export const ProfileScreen = () => {
   };
 
   return (
-    <Screen padded={false}>
+    <Screen noBottomInset padded={false}>
       <ScrollView
-        contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[s.scroll, { paddingBottom: FAB_CLEARANCE }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Goals */}

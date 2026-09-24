@@ -1,9 +1,7 @@
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useWindowDimensions } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-const TAB_BAR_HEIGHT = 68;
+import { FAB_CLEARANCE } from "../../components/BottomTabBar";
 import { Card } from "../../components/Card";
 import { IconButton } from "../../components/IconButton";
 import { Icon } from "../../components/Icon";
@@ -112,14 +110,13 @@ type Props = {
 };
 
 export const MeasurementsView = ({ weights, profile, progressPhotos, onAddWeight, onAddPhoto, onDeletePhoto }: Props) => {
-  const insets = useSafeAreaInsets();
   const current = weights.at(-1);
   const start = weights.at(0);
   const delta = current && start ? Number((current.weightKg - start.weightKg).toFixed(1)) : 0;
 
   return (
     <ScrollView
-      contentContainerStyle={[s.scroll, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24 }]}
+      contentContainerStyle={[s.scroll, { paddingBottom: FAB_CLEARANCE }]}
       showsVerticalScrollIndicator={false}
     >
       <View style={s.header}>
