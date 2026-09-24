@@ -1,3 +1,4 @@
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -54,6 +55,22 @@ const MOCK_RESULT: VisionMealResult = {
   note: "Wynik mock z panelu developerskiego.",
 };
 
+// Longest side for the photo sent to the model. A 12 MP shot is ~4 MB of
+// base64; at 1280 px it is ~20x smaller and uploads in a fraction of the
+// time, while the model sees no difference (Gemini bills an image at a flat
+// token count regardless of resolution).
+const VISION_MAX_SIDE = 1280;
+
+const prepareForVision = async (asset: ImagePicker.ImagePickerAsset) => {
+  const context = ImageManipulator.manipulate(asset.uri);
+  if (Math.max(asset.width, asset.height) > VISION_MAX_SIDE) {
+    context.resize(asset.width >= asset.height ? { width: VISION_MAX_SIDE } : { height: VISION_MAX_SIDE });
+  }
+  const image = await context.renderAsync();
+  const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.8, base64: true });
+  return { uri: saved.uri, base64: saved.base64 ?? null };
+};
+
 const sumItems = (items: VisionItem[]) =>
   items.reduce(
     (acc, it) => ({
@@ -106,21 +123,28 @@ export const PhotoScanScreen = () => {
       return;
     }
 
+    // No base64 from the picker: the full-size string is large and is
+    // replaced by the resized one anyway.
     const result = camera
-      ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.75, base64: true })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.75, base64: true });
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 1 })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 1 });
 
     if (result.canceled) return;
-    const asset = result.assets[0];
 
-    if (!asset.base64) {
+    let prepared: { uri: string; base64: string | null };
+    try {
+      prepared = await prepareForVision(result.assets[0]);
+    } catch {
+      prepared = { uri: result.assets[0].uri, base64: null };
+    }
+    if (!prepared.base64) {
       setError("Nie udało się odczytać zdjęcia. Spróbuj innego.");
       return;
     }
 
-    setImageUri(asset.uri);
-    setImageBase64(asset.base64);
-    setImageMimeType(asset.mimeType ?? "image/jpeg");
+    setImageUri(prepared.uri);
+    setImageBase64(prepared.base64);
+    setImageMimeType("image/jpeg");
     setDraft(null);
     setPhase("ready");
   };
