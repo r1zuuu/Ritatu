@@ -10,6 +10,17 @@ export const toDateKey = (date: Date) =>
 export const startOfDay = (date: Date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
+export const addDays = (date: Date, days: number) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+
+// Whole days from today to `date` (negative in the past). Rounded, so the
+// 23- and 25-hour days around DST changes still count as one.
+export const daysFromToday = (date: Date) =>
+  Math.round((startOfDay(date).getTime() - startOfDay(new Date()).getTime()) / 86_400_000);
+
+// Monday of the week containing `date`.
+export const startOfWeek = (date: Date) => addDays(date, -((date.getDay() + 6) % 7));
+
 export const endOfDay = (date: Date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
 

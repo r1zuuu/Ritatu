@@ -11,6 +11,7 @@ import { radius, space } from "../../theme/layout";
 import { typography } from "../../theme/typography";
 import { sh } from "../../theme/sharedStyles";
 import { angleLabel } from "./AddProgressPhotoSheet";
+import { DaysCalendar } from "./DaysCalendar";
 
 function formatDDMM(date: Date) {
   return `${String(date.getDate()).padStart(2, "0")}.${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -156,6 +157,12 @@ export const MeasurementsView = ({ weights, profile, progressPhotos, onAddWeight
         <StatCard label="Pomiarów" value={String(weights.length)} color={colors.fat} />
       </Animated.View>
 
+      <Text style={s.photoTitle}>Dni</Text>
+      <Text style={s.sectionHint}>Jak szły ostatnie tygodnie. Dotknij dnia, żeby zobaczyć kcal.</Text>
+      <Animated.View entering={FadeInDown.delay(140).duration(420)}>
+        <DaysCalendar />
+      </Animated.View>
+
       <View style={s.photoHeader}>
         <Text style={s.photoTitle}>Zdjęcia postępu</Text>
         <Pressable
@@ -223,6 +230,7 @@ const s = StyleSheet.create({
   statValue: { ...typography.section, marginTop: 4 },
   photoHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
   photoTitle: { ...typography.section, color: colors.text },
+  sectionHint: { ...typography.caption, color: colors.mutedMid, marginBottom: 10, marginTop: 2 },
   photoAdd: { alignItems: "center", flexDirection: "row", gap: 6, minHeight: 40 },
   photoAddText: { ...typography.label, color: colors.accent },
   photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: space.md },

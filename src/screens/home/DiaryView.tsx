@@ -7,7 +7,7 @@ import { Card } from "../../components/Card";
 import { IconButton } from "../../components/IconButton";
 import { Icon } from "../../components/Icon";
 import { Sheet } from "../../components/Sheet";
-import { calculateMealMacros, summarizeMeals } from "../../core/macroCalculator";
+import { calculateMealMacros, isDayCounted, summarizeMeals } from "../../core/macroCalculator";
 import { SECTIONS, type Section } from "../../core/section";
 import type { MealEntry, UserProfile } from "../../data/types";
 import { colors } from "../../theme/colors";
@@ -83,6 +83,9 @@ export const DiaryView = ({ meals, dateOffset, currentDate, setDateOffset, profi
   const goalCarbs = profile?.goalCarbsG ?? 270;
   const goalFat = profile?.goalFatG ?? 73;
   const remaining = goalKcal - totals.kcal;
+  // Only finished days: today is still being logged.
+  const minKcal = profile?.minCountedKcal ?? null;
+  const skipped = dateOffset < 0 && totals.kcal > 0 && !isDayCounted(totals.kcal, minKcal);
   const pctKcal = Math.min((totals.kcal / goalKcal) * 100, 100);
 
   const mealsBySection = useMemo(() => (
@@ -120,6 +123,15 @@ export const DiaryView = ({ meals, dateOffset, currentDate, setDateOffset, profi
           onPress={() => setDateOffset(dateOffset + 1)}
         />
       </View>
+
+      {skipped ? (
+        <View style={s.skippedChip}>
+          <Icon name="info" size={16} color={colors.mutedMid} />
+          <Text style={s.skippedText}>
+            Dzień nieliczony: poniżej progu {Math.round(minKcal ?? 0)} kcal, poza średnimi i serią.
+          </Text>
+        </View>
+      ) : null}
 
       {/* Summary card — hero */}
       <Animated.View entering={FadeInDown.duration(420)}>
@@ -271,6 +283,17 @@ export const DiaryView = ({ meals, dateOffset, currentDate, setDateOffset, profi
 const s = StyleSheet.create({
   scroll: { paddingHorizontal: space.xl },
   dateRow: { alignItems: "center", flexDirection: "row", paddingVertical: space.sm },
+  skippedChip: {
+    alignItems: "center",
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.control,
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: space.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  skippedText: { ...typography.caption, color: colors.mutedMid, flex: 1 },
   dateCenter: { alignItems: "center", flex: 1 },
   dateLabel: { fontFamily: "Inter_700Bold", fontSize: 20, color: colors.text, lineHeight: 26 },
   dateSub: { ...typography.stat, color: colors.muted, marginTop: 1 },

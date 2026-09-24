@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { toDateKey } from "../core/date";
-import { GOAL_MET_RATIO, calculateMealMacros, round, summarizeMeals } from "../core/macroCalculator";
+import { calculateMealMacros, goalStatus, isDayCounted, round, summarizeMeals } from "../core/macroCalculator";
 import { parseMeals } from "./mealRepository";
 import { getUserProfile } from "./userRepository";
 import { getWeights } from "./weightRepository";
@@ -109,6 +109,7 @@ const DAYS_HEADER = [
   "cel kcal",
   "% celu kcal",
   "cel osiągnięty",
+  "dzień liczony",
   "białko [g]",
   "cel białka [g]",
   "węglowodany [g]",
@@ -148,7 +149,8 @@ export const buildDaysCsv = async (uid: string): Promise<string> => {
       totals ? num(totals.kcal, 0) : "",
       goalCell(goalKcal),
       totals && goalKcal ? num((totals.kcal / goalKcal) * 100, 0) : "",
-      totals && goalKcal ? (totals.kcal >= goalKcal * GOAL_MET_RATIO ? "tak" : "nie") : "",
+      totals && goalKcal ? (goalStatus(totals.kcal, goalKcal) === "met" ? "tak" : "nie") : "",
+      totals ? (isDayCounted(totals.kcal, profile?.minCountedKcal) ? "tak" : "nie") : "",
       totals ? num(totals.proteinG) : "",
       goalCell(profile?.goalProteinG),
       totals ? num(totals.carbsG) : "",

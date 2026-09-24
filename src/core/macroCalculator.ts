@@ -21,9 +21,16 @@ const activityMultiplier: Record<ActivityLevel, number> = {
   active: 1.725,
 };
 
-// A day counts as hitting its goal at 90% of target calories. Shared so the
-// weekly view and the CSV export cannot drift apart.
-export const GOAL_MET_RATIO = 0.9;
+// Shared by the week view, the calendar and the CSV export so they never
+// disagree. "met" is 90–110% of the goal: 150% of a cut target is not a win.
+export type GoalStatus = "under" | "met" | "over";
+export const goalStatus = (kcal: number, goal: number): GoalStatus =>
+  kcal < goal * 0.9 ? "under" : kcal > goal * 1.1 ? "over" : "met";
+
+// A day with food logged but under the user's optional floor was not fully
+// logged (tracking skipped), so it stays out of averages, goal stats and streaks.
+export const isDayCounted = (kcal: number, minKcal?: number | null) =>
+  kcal > 0 && !(minKcal && kcal < minKcal);
 
 export const round = (value: number, places = 0) => {
   const factor = 10 ** places;
