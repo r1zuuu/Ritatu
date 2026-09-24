@@ -36,7 +36,6 @@ export default function RootLayout() {
             <Stack.Screen name="home"    options={{ animation: "none" }} />
             <Stack.Screen name="weekly"  options={{ animation: "none" }} />
             <Stack.Screen name="profile" options={{ animation: "none" }} />
-            <Stack.Screen name="history" options={{ animation: "none" }} />
           </Stack>
         </MealsProvider>
       </UserProfileProvider>

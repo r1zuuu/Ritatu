@@ -1,11 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MacroConfirmSheet } from "../../components/MacroConfirmSheet";
 import { toDateKey } from "../../core/date";
-import type { Section } from "../../core/section";
+import { getSectionByTime, isSection, type Section } from "../../core/section";
 import { cacheMealsForDay, getCachedMealsForDay } from "../../data/mealRepository";
 import { deleteProgressPhoto, getProgressPhotos, saveProgressPhotos } from "../../data/progressPhotoRepository";
 import type { MealDraft, MealEntry, ProgressPhoto, WeightEntry } from "../../data/types";
@@ -49,6 +49,14 @@ export const HomeScreen = () => {
   const [showAddPhoto, setShowAddPhoto] = useState(false);
   const [editingMeal, setEditingMeal] = useState<MealEntry | null>(null);
   const lastAmountsRef = useRef<Map<string | number, string>>(new Map());
+  const { add } = useLocalSearchParams<{ add?: string }>();
+
+  // `/home?add=Obiad` opens the search sheet (FAB "Wyszukaj", scanner fallback).
+  useEffect(() => {
+    if (!add) return;
+    setAddFoodSection(isSection(add) ? add : getSectionByTime());
+    router.setParams({ add: undefined });
+  }, [add]);
 
   // One loader for day changes, returns from the scanner/photo screens and
   // saves. The guard drops a slow read for a day the user already left.
@@ -229,11 +237,6 @@ export const HomeScreen = () => {
           const section = addFoodSection ?? "";
           setAddFoodSection(null);
           router.push({ pathname: "/add-meal/photo", params: section ? { section } : undefined });
-        }}
-        onManualEntry={() => {
-          const section = addFoodSection ?? "";
-          setAddFoodSection(null);
-          router.push({ pathname: "/add-meal/manual", params: section ? { section } : undefined });
         }}
       />
 

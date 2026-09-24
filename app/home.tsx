@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { HomeScreen } from "../src/screens/HomeScreen";
+import { HomeScreen } from "../src/screens/home/HomeScreen";
 import { BottomTabBar } from "../src/components/BottomTabBar";
 import { colors } from "../src/theme/colors";
 

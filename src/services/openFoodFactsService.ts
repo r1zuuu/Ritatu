@@ -182,7 +182,7 @@ export const lookupProductByBarcode = async (
       ok: false,
       status: "network_error",
       barcode,
-      warning: "Nie udalo sie polaczyc z Open Food Facts. Sprobuj ponownie albo wpisz recznie.",
+      warning: "Nie udało się połączyć z Open Food Facts. Sprawdź internet i spróbuj ponownie.",
     };
   }
 
@@ -191,7 +191,7 @@ export const lookupProductByBarcode = async (
       ok: false,
       status: "network_error",
       barcode,
-      warning: "Open Food Facts nie odpowiedzialo poprawnie. Sprobuj ponownie albo wpisz recznie.",
+      warning: "Open Food Facts chwilowo nie odpowiada. Spróbuj ponownie za moment.",
     };
   }
 
@@ -202,7 +202,7 @@ export const lookupProductByBarcode = async (
       ok: false,
       status: "not_found",
       barcode,
-      warning: "Nie znaleziono produktu. Mozesz wpisac makro recznie.",
+      warning: "Tego kodu nie ma w Open Food Facts. Wyszukaj produkt po nazwie.",
     };
   }
 
@@ -219,7 +219,7 @@ export const lookupProductByBarcode = async (
       ok: false,
       status: "incomplete",
       barcode,
-      warning: "Produkt ma niekompletne dane makro. Uzupelnij je recznie.",
+      warning: "Ten produkt nie ma pełnych wartości odżywczych. Wyszukaj podobny po nazwie.",
     };
   }
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Sheet } from "../../components/Sheet";
-import { Icon } from "../../components/Icon";
+import { Icon, type IconName } from "../../components/Icon";
 import { dateWithOffset } from "../../core/date";
 import { countMatches, matchScore, normalize, tokenize } from "../../core/search";
 import { getCachedMealsForDay } from "../../data/mealRepository";
@@ -27,7 +27,7 @@ function offItemToFoodItem(item: OpenFoodFactsSearchItem): FoodItem {
   };
 }
 
-function ActionTile({ icon, label, onPress }: { icon: "barcode" | "camera" | "plus" | "check"; label: string; onPress: () => void }) {
+function ActionTile({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -52,7 +52,6 @@ type Props = {
   onQuickAdd: () => void;
   onScanBarcode: () => void;
   onAnalyzePhoto: () => void;
-  onManualEntry: () => void;
 };
 
 export const AddFoodSheet = ({
@@ -66,7 +65,6 @@ export const AddFoodSheet = ({
   onQuickAdd,
   onScanBarcode,
   onAnalyzePhoto,
-  onManualEntry,
 }: Props) => {
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"search" | "recent" | "custom">("search");
@@ -189,10 +187,9 @@ export const AddFoodSheet = ({
         </View>
 
         <View style={s.quickGrid}>
-          <ActionTile icon="barcode" label="Skan" onPress={onScanBarcode} />
-          <ActionTile icon="camera" label="Zdjęcie" onPress={onAnalyzePhoto} />
-          <ActionTile icon="plus" label="Ręcznie" onPress={onManualEntry} />
-          <ActionTile icon="check" label="Jednoraz." onPress={onQuickAdd} />
+          <ActionTile icon="barcode" label="Skanuj" onPress={onScanBarcode} />
+          <ActionTile icon="camera" label="Zdjęcie AI" onPress={onAnalyzePhoto} />
+          <ActionTile icon="flame" label="Szybkie kcal" onPress={onQuickAdd} />
         </View>
 
         <View style={s.tabs}>

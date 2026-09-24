@@ -7,6 +7,7 @@ import { Icon } from "../components/Icon";
 import { MacroConfirmSheet } from "../components/MacroConfirmSheet";
 import { Screen } from "../components/Screen";
 import { formatDayLabel } from "../core/date";
+import { getSectionByTime } from "../core/section";
 import type { MealDraft } from "../data/types";
 import { getDeveloperSettings } from "../data/developerRepository";
 import { useMeals } from "../providers/MealsProvider";
@@ -67,15 +68,9 @@ export const BarcodeScanScreen = () => {
     setLoading(false);
   };
 
-  const goManual = (barcode?: string) => {
-    router.replace({
-      pathname: "/add-meal/manual",
-      params: {
-        ...(barcode ? { barcode } : {}),
-        ...(params.section ? { section: params.section } : {}),
-      },
-    });
-  };
+  // Back to the diary with the search sheet open for the same meal.
+  const goSearch = () =>
+    router.dismissTo({ pathname: "/home", params: { add: params.section ?? getSectionByTime() } });
 
   const handleScan = async ({ data }: BarcodeScanningResult) => {
     if (scanLockedRef.current) return;
@@ -171,10 +166,11 @@ export const BarcodeScanScreen = () => {
             accessibilityHint="Otwiera prosbe systemowa o dostep do aparatu"
           />
           <Button
-            title="Wpisz recznie"
+            title="Wyszukaj po nazwie"
+            icon="search"
             variant="secondary"
-            onPress={() => goManual()}
-            accessibilityHint="Przechodzi do recznego wpisania posilku"
+            onPress={goSearch}
+            accessibilityHint="Wraca do wyszukiwarki produktów"
           />
         </View>
       </Screen>
@@ -256,10 +252,10 @@ export const BarcodeScanScreen = () => {
                   accessibilityHint="Wraca do aktywnego skanowania"
                 />
                 <Button
-                  title="Wpisz recznie"
-                  icon="plus"
-                  onPress={() => goManual(lookupError.barcode)}
-                  accessibilityHint="Przechodzi do formularza recznego wpisania makro"
+                  title="Wyszukaj po nazwie"
+                  icon="search"
+                  onPress={goSearch}
+                  accessibilityHint="Wraca do wyszukiwarki produktów"
                 />
               </View>
             </View>
