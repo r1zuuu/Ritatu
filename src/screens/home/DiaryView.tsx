@@ -139,7 +139,7 @@ export const DiaryView = ({ meals, dateOffset, currentDate, setDateOffset, profi
   const pctKcal = Math.min((totals.kcal / goalKcal) * 100, 100);
   // The meal happening now gets the only accent on the timeline.
   const currentSection = dateOffset === 0 ? getSectionByTime() : null;
-  const mealsKey = meals.map((m) => m.id).join(",");
+  const mealsKey = meals.map((m) => `${m.id}:${m.weightG}:${m.kcalPer100g ?? ""}`).join(",");
 
   const mealsBySection = useMemo(() => (
     Object.fromEntries(

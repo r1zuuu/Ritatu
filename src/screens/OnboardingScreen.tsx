@@ -104,6 +104,9 @@ export const OnboardingScreen = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [values, setValues] = useState<OnboardingValues>(() => profileToValues(profile));
+  // Editing other data must not move or drop a saved target date: it only
+  // changes once a period chip is tapped.
+  const [dateTouched, setDateTouched] = useState(false);
 
   const steps = useMemo(
     () => BASE_STEPS.filter((step) => values.goal !== "maintain" || (step !== "pace" && step !== "target")),
@@ -117,7 +120,9 @@ export const OnboardingScreen = () => {
   const height = parseDecimal(values.height);
   const age = parseDecimal(values.age);
   const targetWeight = parseDecimal(values.targetWeight);
-  const targetDate = values.targetMonths ? addDays(new Date(), Math.round(values.targetMonths * 30.4)) : null;
+  const targetDate = dateTouched
+    ? values.targetMonths ? addDays(new Date(), Math.round(values.targetMonths * 30.4)) : null
+    : profile?.targetDate ?? null;
 
   // Only once the body data is plausible: with empty fields the formula
   // produced negative calories on the very first screen.
@@ -367,7 +372,7 @@ export const OnboardingScreen = () => {
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
                       style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.pressedLight]}
-                      onPress={() => setValue("targetMonths", months)}
+                      onPress={() => { setDateTouched(true); setValue("targetMonths", months); }}
                     >
                       <Text style={[styles.chipText, active && styles.chipTextActive]}>
                         {months === null ? "Bez terminu" : months === 12 ? "Rok" : `${months} mies.`}

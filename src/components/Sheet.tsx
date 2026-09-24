@@ -89,6 +89,7 @@ export const Sheet = ({ visible, onClose, title, children, height = "88%" }: She
       animationType="none"
       onRequestClose={close}
       statusBarTranslucent
+      navigationBarTranslucent
     >
       <View style={s.root}>
         <Animated.View style={[StyleSheet.absoluteFill, s.backdrop, backdropStyle]}>

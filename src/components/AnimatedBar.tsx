@@ -51,9 +51,11 @@ export function AnimatedBar({
       style={[s.track, { height, borderRadius: height / 2, backgroundColor: track }]}
       onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
     >
-      <Animated.View
-        style={[{ height: "100%", borderRadius: height / 2, backgroundColor: color }, fill]}
-      />
+      {trackWidth > 0 ? (
+        <Animated.View
+          style={[{ height: "100%", borderRadius: height / 2, backgroundColor: color }, fill]}
+        />
+      ) : null}
     </View>
   );
 }

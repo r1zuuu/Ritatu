@@ -28,6 +28,11 @@ type MealsContextValue = {
 
 const MealsContext = createContext<MealsContextValue | null>(null);
 
+const atCurrentTime = (day: Date) => {
+  const now = new Date();
+  return new Date(day.getFullYear(), day.getMonth(), day.getDate(), now.getHours(), now.getMinutes(), now.getSeconds());
+};
+
 export const MealsProvider = ({ children }: PropsWithChildren) => {
   const { user } = useAuth();
   const toast = useToast();
@@ -63,8 +68,9 @@ export const MealsProvider = ({ children }: PropsWithChildren) => {
         carbsPer100g: draft.carbsPer100g,
         fatPer100g: draft.fatPer100g,
         kcalPer100g: draft.kcalPer100g ?? null,
-        // Selected day, current time of day, so meals still sort sensibly.
-        timestamp: dateWithOffset(dateOffset),
+        // The day on screen (even if midnight passed meanwhile), at the current
+        // time of day so meals still sort sensibly.
+        timestamp: atCurrentTime(selectedDate),
         source: draft.source,
         section: draft.section ?? null,
         barcode: draft.barcode ?? null,
@@ -80,7 +86,7 @@ export const MealsProvider = ({ children }: PropsWithChildren) => {
       if (dateOffset !== 0) parts.push(formatDayLabel(dateOffset, dateWithOffset(dateOffset)).toLowerCase());
       toast({ message: parts.join(" · ") });
     },
-    [dateOffset, toast, user],
+    [dateOffset, selectedDate, toast, user],
   );
 
   const value = useMemo(

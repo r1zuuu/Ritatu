@@ -128,7 +128,8 @@ export const MacroConfirmSheet = ({
       return { ...base, kcal: Number.isFinite(kcal) ? kcal : 0, weightG: draft.weightG };
     }
     const w = parseDecimal(weight);
-    return { ...calculateMealMacros(draft, Number.isFinite(w) ? w : 0), weightG: w };
+    const grams = Number.isFinite(w) ? w : 0;
+    return { ...calculateMealMacros(draft, grams), weightG: grams };
   }, [draft, editItems, itemsMode, kcalText, quickMode, weight]);
 
   if (!draft) return null;

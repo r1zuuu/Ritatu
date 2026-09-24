@@ -175,7 +175,7 @@ const parseVisionResult = (payload: unknown): VisionMealResult => {
   const items = (Array.isArray(data.items) ? data.items : []).map(parseItem);
 
   return {
-    dish_name: toString(data.dish_name, "dish_name"),
+    dish_name: typeof data.dish_name === "string" && data.dish_name.trim() ? data.dish_name.trim() : "Posiłek",
     confidence: toConfidence(data.confidence),
     items,
     ...sumItems(items),
@@ -232,7 +232,8 @@ const callGemini = async (
   const payload = (await response.json().catch(() => null)) as GeminiResponse | null;
   if (!response.ok) {
     const detail = payload?.error ?? response.status;
-    if (response.status === 401 || response.status === 403) fail(MESSAGES.auth, detail);
+    // Gemini answers a bad key with 400 API_KEY_INVALID and an unknown model with 404.
+    if ([400, 401, 403, 404].includes(response.status)) fail(MESSAGES.auth, detail);
     if (response.status === 429) fail(MESSAGES.quota, detail);
     fail(MESSAGES.network, detail);
   }

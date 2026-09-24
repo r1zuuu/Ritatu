@@ -99,6 +99,8 @@ export const WeeklyScreen = () => {
   const goalFat = profile?.goalFatG ?? null;
   const minKcal = profile?.minCountedKcal ?? null;
   const monday = startOfWeek(addDays(new Date(), weekOffset * 7));
+  // Part of the reload key, so a week left open past midnight moves on.
+  const todayKey = toDateKey(new Date());
 
   // The tab stays mounted, so reload on focus to pick up meals added elsewhere.
   // Old data stays on screen while the next week loads: local reads are fast
@@ -131,8 +133,8 @@ export const WeeklyScreen = () => {
         },
       );
       return () => { active = false; };
-      // monday is derived from weekOffset, so weekOffset is the dependency.
-    }, [user.uid, weekOffset, minKcal]),
+      // monday is derived from weekOffset and todayKey, so those are the dependencies.
+    }, [user.uid, weekOffset, minKcal, todayKey]),
   );
 
   const openDay = (date: Date) => {

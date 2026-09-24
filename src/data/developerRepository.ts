@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearProgressPhotos } from "./progressPhotoRepository";
 import { toDateKey } from "../core/date";
 import type { DeveloperSettings, MealEntry, ProgressPhoto, UserProfile, WeightEntry } from "./types";
 
@@ -112,7 +113,7 @@ export const seedDemoData = async (uid: string, profile: UserProfile | null): Pr
   ];
 
   entries.push([WEIGHTS_KEY, JSON.stringify(weights)]);
-  entries.push(["ritatu:progress-photos", JSON.stringify([])]);
+  await clearProgressPhotos();
 
   await AsyncStorage.multiSet(entries);
 

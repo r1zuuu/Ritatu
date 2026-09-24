@@ -47,6 +47,8 @@ export const DaysCalendar = () => {
   const [selected, setSelected] = useState<Cell | null>(null);
   const goal = profile?.goalKcal ?? null;
   const minKcal = profile?.minCountedKcal ?? null;
+  // Reload key: the grid moves on when the date changes while it is on screen.
+  const todayKey = toDateKey(new Date());
 
   useFocusEffect(
     useCallback(() => {
@@ -66,7 +68,7 @@ export const DaysCalendar = () => {
         );
       });
       return () => { active = false; };
-    }, [user.uid]),
+    }, [todayKey, user.uid]),
   );
 
   const selectedKind = selected ? cellKind(selected, goal, minKcal) : null;

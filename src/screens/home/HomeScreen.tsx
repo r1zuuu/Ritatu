@@ -67,11 +67,14 @@ export const HomeScreen = () => {
     if (addFoodSection) setSheetSection(addFoodSection);
   }, [addFoodSection]);
 
-  useEffect(() => {
-    void AsyncStorage.getItem(CUSTOM_PRODUCTS_KEY).then((value) => {
-      if (value) { try { setCustomProducts(JSON.parse(value) as FoodItem[]); } catch {} }
-    });
-  }, []);
+  // On focus, not once: the tab stays mounted and Profile can wipe the list.
+  useFocusEffect(
+    useCallback(() => {
+      void AsyncStorage.getItem(CUSTOM_PRODUCTS_KEY).then((value) => {
+        try { setCustomProducts(value ? (JSON.parse(value) as FoodItem[]) : []); } catch { setCustomProducts([]); }
+      });
+    }, []),
+  );
 
   const saveCustomProducts = useCallback(async (next: FoodItem[]) => {
     await AsyncStorage.setItem(CUSTOM_PRODUCTS_KEY, JSON.stringify(next));
@@ -120,6 +123,7 @@ export const HomeScreen = () => {
     if (!user || !editingMeal) return;
     const removed = editingMeal;
     const day = selectedDate;
+    const index = meals.findIndex((m) => m.id === removed.id);
     const updated = meals.filter((m) => m.id !== removed.id);
     await cacheMealsForDay(user.uid, day, updated);
     setMeals(updated);
@@ -131,7 +135,9 @@ export const HomeScreen = () => {
         onPress: () => {
           void (async () => {
             const current = await getCachedMealsForDay(user.uid, day);
-            const restored = [removed, ...current].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+            if (current.some((m) => m.id === removed.id)) return;
+            const restored = [...current];
+            restored.splice(Math.min(Math.max(index, 0), restored.length), 0, removed);
             await cacheMealsForDay(user.uid, day, restored);
             setRefreshKey((k) => k + 1);
           })();

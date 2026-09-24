@@ -57,11 +57,15 @@ export const MeasurementsScreen = () => {
   };
 
   const handleDeleteWeight = async (entry: WeightEntry) => {
-    const before = weights;
     await persist(weights.filter((w) => w.id !== entry.id));
     toast({
       message: `Usunięto pomiar ${formatDecimal(entry.weightKg, 1)} kg`,
-      action: { label: "Cofnij", onPress: () => void persist(before) },
+      action: {
+        label: "Cofnij",
+        // Re-read: a weigh-in added during the undo window must survive.
+        onPress: () => void getWeights().then((current) =>
+          current.some((w) => w.date === entry.date) ? undefined : persist([...current, entry])),
+      },
     });
   };
 
