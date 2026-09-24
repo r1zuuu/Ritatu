@@ -225,14 +225,9 @@ export const ProfileScreen = () => {
         ) : null}
 
         <Card style={s.thresholdCard}>
-          <View style={s.thresholdText}>
+          <View style={s.thresholdHead}>
             <Text style={s.thresholdTitle}>Próg liczenia dnia</Text>
-            <Text style={s.thresholdBody}>
-              Opcjonalnie. Dni z mniejszą liczbą kcal traktujemy jak niezapisane: wypadają ze średnich i serii,
-              a w kalendarzu są przekreślone.
-            </Text>
-          </View>
-          <View style={s.thresholdInputRow}>
+            <View style={s.thresholdInputRow}>
             <TextInput
               accessibilityLabel="Próg liczenia dnia w kcal"
               style={s.thresholdInput}
@@ -243,8 +238,13 @@ export const ProfileScreen = () => {
               placeholderTextColor={colors.muted}
               selectTextOnFocus
             />
-            <Text style={s.tileUnit}>kcal</Text>
+              <Text style={s.tileUnit}>kcal</Text>
+            </View>
           </View>
+          <Text style={s.thresholdBody}>
+            Opcjonalnie. Dni z mniejszą liczbą kcal traktujemy jak niezapisane: wypadają ze średnich i serii,
+            a w kalendarzu są przekreślone.
+          </Text>
         </Card>
 
         <Button title="Zapisz cele" icon="check" disabled={!goalsValid} onPress={() => void saveGoals()} />
@@ -364,13 +364,14 @@ const s = StyleSheet.create({
     fontSize: 26,
     fontVariant: ["tabular-nums"],
     letterSpacing: -0.5,
+    minWidth: 0,
     paddingVertical: 0,
   },
   tileUnit: { ...typography.micro, color: colors.mutedMid, marginBottom: 4 },
 
-  thresholdCard: { alignItems: "center", flexDirection: "row", gap: 14, marginBottom: space.lg, padding: space.lg },
-  thresholdText: { flex: 1, gap: 4 },
-  thresholdTitle: { ...typography.label, color: colors.text, fontSize: 14 },
+  thresholdCard: { gap: 10, marginBottom: space.lg, padding: space.lg },
+  thresholdHead: { alignItems: "center", flexDirection: "row", gap: 12, justifyContent: "space-between" },
+  thresholdTitle: { ...typography.label, color: colors.text, flex: 1, fontSize: 14 },
   thresholdBody: { ...typography.caption, color: colors.mutedMid },
   thresholdInputRow: {
     alignItems: "flex-end",
@@ -386,9 +387,9 @@ const s = StyleSheet.create({
     fontFamily: fontFamilies.semibold,
     fontSize: 20,
     fontVariant: ["tabular-nums"],
-    minWidth: 56,
     paddingVertical: 0,
     textAlign: "right",
+    width: 72,
   },
 
   hint: { ...typography.caption, color: colors.mutedMid, marginTop: 8 },

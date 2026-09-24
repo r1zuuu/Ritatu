@@ -180,7 +180,8 @@ const s = StyleSheet.create({
   cellTextStrong: { color: colors.text },
 
   future: { opacity: 0.25 },
-  empty: { backgroundColor: colors.surfaceAlt },
+  // Outline only: a fill would match the card and vanish.
+  empty: { borderColor: colors.border },
   logged: { backgroundColor: `${colors.accent}40` },
   under: { backgroundColor: `${colors.mutedMid}2E` },
   met: { backgroundColor: `${colors.green}59` },

@@ -238,6 +238,10 @@ export const WeeklyScreen = () => {
                 </View>
                 {goalKcal ? (
                   <View style={s.legend}>
+                    <View style={s.legendItem}>
+                      <View style={s.legendLine} />
+                      <Text style={s.legendText}>cel</Text>
+                    </View>
                     <LegendDot color={colors.green} label="w celu" />
                     <LegendDot color={colors.mutedMid} label="poniżej" />
                     <LegendDot color={colors.danger} label="ponad" />
@@ -376,7 +380,8 @@ const s = StyleSheet.create({
   barFuture: { opacity: 0.3 },
   barFill: { borderRadius: 6, height: BAR_H, width: "100%" },
   // Drawn per column, so the gaps between bars make it read as a dashed line.
-  goalLine: { backgroundColor: colors.text, height: 1, left: 0, opacity: 0.35, position: "absolute", right: 0 },
+  goalLine: { backgroundColor: colors.accent, height: 2, left: 0, opacity: 0.55, position: "absolute", right: 0 },
+  legendLine: { backgroundColor: colors.accent, borderRadius: 1, height: 2, opacity: 0.7, width: 12 },
   dayLabel: { ...typography.micro, color: colors.mutedMid },
   dayToday: { color: colors.accent, fontFamily: typography.label.fontFamily },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 14 },
