@@ -1,7 +1,8 @@
 import { useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { Easing, FadeInDown, useAnimatedProps, useSharedValue, withTiming } from "react-native-reanimated";
+import Svg, { Circle } from "react-native-svg";
 import { AnimatedBar } from "../../components/AnimatedBar";
 import { FAB_CLEARANCE } from "../../components/BottomTabBar";
 import { Card } from "../../components/Card";
@@ -21,6 +22,44 @@ const MONTHS_LONG = ["stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca
 const WEEKDAYS = ["pn", "wt", "śr", "cz", "pt", "sb", "nd"];
 
 const formatDateSub = (date: Date) => `${date.getDate()} ${MONTHS_LONG[date.getMonth()]} ${date.getFullYear()}`;
+
+const RING = 128;
+const RING_STROKE = 12;
+const RING_R = (RING - RING_STROKE) / 2;
+const RING_C = 2 * Math.PI * RING_R;
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+// Calories as a filling ring; turns red past the goal. The arc animates its
+// dash offset on the UI thread.
+function KcalRing({ pct, over, children }: { pct: number; over: boolean; children: React.ReactNode }) {
+  const progress = useSharedValue(0);
+  useEffect(() => {
+    progress.value = withTiming(Math.min(pct, 1), { duration: 600, easing: Easing.out(Easing.cubic) });
+  }, [pct, progress]);
+  const arcProps = useAnimatedProps(() => ({ strokeDashoffset: RING_C * (1 - progress.value) }));
+
+  return (
+    <View style={s.ring}>
+      <Svg width={RING} height={RING} style={s.ringSvg}>
+        <Circle cx={RING / 2} cy={RING / 2} r={RING_R} stroke={colors.surfaceAlt} strokeWidth={RING_STROKE} fill="none" />
+        {pct > 0 ? (
+          <AnimatedCircle
+            cx={RING / 2}
+            cy={RING / 2}
+            r={RING_R}
+            stroke={over ? colors.danger : colors.accent}
+            strokeWidth={RING_STROKE}
+            strokeLinecap="round"
+            strokeDasharray={`${RING_C} ${RING_C}`}
+            fill="none"
+            animatedProps={arcProps}
+          />
+        ) : null}
+      </Svg>
+      <View style={s.ringCenter}>{children}</View>
+    </View>
+  );
+}
 
 function MacroBar({ label, current, goal, color, delay }: { label: string; current: number; goal: number; color: string; delay: number }) {
   const pct = Math.min(goal > 0 ? (current / goal) * 100 : 0, 100);
@@ -136,7 +175,6 @@ export const DiaryView = ({ meals, dateOffset, currentDate, setDateOffset, profi
   // Only finished days: today is still being logged.
   const minKcal = profile?.minCountedKcal ?? null;
   const skipped = dateOffset < 0 && totals.kcal > 0 && !isDayCounted(totals.kcal, minKcal);
-  const pctKcal = Math.min((totals.kcal / goalKcal) * 100, 100);
   // The meal happening now gets the only accent on the timeline.
   const currentSection = dateOffset === 0 ? getSectionByTime() : null;
   const mealsKey = meals.map((m) => `${m.id}:${m.weightG}:${m.kcalPer100g ?? ""}`).join(",");
@@ -195,17 +233,22 @@ export const DiaryView = ({ meals, dateOffset, currentDate, setDateOffset, profi
 
       <Animated.View entering={FadeInDown.duration(320)}>
         <Card variant="hero" style={s.summaryCard}>
-          <Text style={s.cardLabel}>Kalorie</Text>
-          <View style={s.kcalRow}>
-            <Text style={s.kcalBig}>{totals.kcal}</Text>
-            <View style={s.kcalSide}>
-              <Text style={s.kcalGoal}>z {Math.round(goalKcal)} kcal</Text>
-              <Text style={[s.remaining, { color: remaining >= 0 ? colors.green : colors.danger }]}>
-                {remaining >= 0 ? `${remaining} pozostało` : `${Math.abs(remaining)} ponad cel`}
-              </Text>
+          <View style={s.ringRow}>
+            <KcalRing pct={totals.kcal / goalKcal} over={remaining < 0}>
+              <Text style={[s.ringValue, remaining < 0 && { color: colors.danger }]}>{Math.abs(Math.round(remaining))}</Text>
+              <Text style={s.ringLabel}>{remaining >= 0 ? "pozostało" : "ponad cel"}</Text>
+            </KcalRing>
+            <View style={s.ringStats}>
+              <View>
+                <Text style={s.cardLabel}>Zjedzone</Text>
+                <Text style={s.ringStat}>{totals.kcal} <Text style={s.ringUnit}>kcal</Text></Text>
+              </View>
+              <View>
+                <Text style={s.cardLabel}>Cel</Text>
+                <Text style={s.ringStat}>{Math.round(goalKcal)} <Text style={s.ringUnit}>kcal</Text></Text>
+              </View>
             </View>
           </View>
-          <AnimatedBar pct={pctKcal} color={pctKcal >= 100 ? colors.danger : colors.accent} height={7} delay={120} />
           <View style={s.macroStack}>
             <MacroBar label="Białko" current={totals.protein} goal={goalProtein} color={colors.protein} delay={180} />
             <MacroBar label="Węglowodany" current={totals.carbs} goal={goalCarbs} color={colors.carbs} delay={220} />
@@ -334,12 +377,16 @@ const s = StyleSheet.create({
   skippedText: { ...typography.caption, color: colors.mutedMid, flex: 1 },
 
   summaryCard: { marginBottom: space.xl, padding: 20 },
+  ringRow: { alignItems: "center", flexDirection: "row", gap: 22 },
+  ring: { height: RING, width: RING },
+  ringSvg: { transform: [{ rotate: "-90deg" }] },
+  ringCenter: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center" },
+  ringValue: { ...typography.display, color: colors.text, fontSize: 30, lineHeight: 34 },
+  ringLabel: { ...typography.micro, color: colors.mutedMid },
+  ringStats: { flex: 1, gap: 14 },
+  ringStat: { ...typography.headline, color: colors.text, fontVariant: ["tabular-nums"] },
+  ringUnit: { ...typography.label, color: colors.mutedMid },
   cardLabel: { ...typography.label, color: colors.mutedMid },
-  kcalRow: { alignItems: "flex-end", flexDirection: "row", gap: 10, marginBottom: 12 },
-  kcalBig: { ...typography.display, color: colors.text },
-  kcalSide: { gap: 2, paddingBottom: 7 },
-  kcalGoal: { ...typography.label, color: colors.mutedMid },
-  remaining: { ...typography.label },
   macroStack: { marginTop: 18 },
   macroWrap: { marginBottom: 10 },
   macroRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
