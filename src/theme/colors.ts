@@ -11,10 +11,11 @@ export const colors = {
   border:    "rgba(250,240,215,0.07)",
   borderMid: "rgba(250,240,215,0.13)",
 
-  // Warm white text
+  // Warm white text. muted is the floor for readable text: ≥4.5:1 on every
+  // surface up to elevated (the old #6C6660 was 2.7:1 on cards).
   text:     "#EDE8DE",
-  muted:    "#6C6660",
-  mutedMid: "#9C9690",
+  muted:    "#928B83",
+  mutedMid: "#B3ADA4",
 
   // Orange — precise and restrained
   accent:      "#FF6524",
@@ -28,10 +29,14 @@ export const colors = {
   fat:     "#B89CF0",   // soft violet
   green:   "#3BC97A",   // clean green
   danger:  "#FF4F6B",
+  dangerA: "rgba(255,79,107,0.12)",
+  greenA:  "rgba(59,201,122,0.12)",
+
+  // Backdrop behind sheets, menus and camera overlays
+  scrim: "rgba(8,7,5,0.62)",
 
   // Aliases
   paper:     "#F0EAE0",
   warmBlack: "#111009",
-  darkCard:  "#1E1A12",
   kcal:      "#FF6524",
 };

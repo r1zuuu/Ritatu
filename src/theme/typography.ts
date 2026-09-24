@@ -1,3 +1,5 @@
+import type { TextStyle } from "react-native";
+
 export const fontFamilies = {
   regular:  "Inter_400Regular",
   medium:   "Inter_500Medium",
@@ -11,7 +13,13 @@ export const typography = {
   display: {
     fontFamily: fontFamilies.bold,
     fontSize: 48,
+    fontVariant: ["tabular-nums"] as TextStyle["fontVariant"],
     lineHeight: 52,
+  },
+  headline: {
+    fontFamily: fontFamilies.semibold,
+    fontSize: 22,
+    lineHeight: 28,
   },
   title: {
     fontFamily: fontFamilies.bold,
@@ -28,10 +36,22 @@ export const typography = {
     fontSize: 15,
     lineHeight: 22,
   },
+  caption: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   label: {
     fontFamily: fontFamilies.semibold,
     fontSize: 12,
     lineHeight: 16,
+  },
+  // Smallest readable size, for data labels (axis, day initials). Inter, not
+  // Barlow: Barlow Light at this size is too thin to read.
+  micro: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 11,
+    lineHeight: 14,
   },
   button: {
     fontFamily: fontFamilies.semibold,
@@ -41,7 +61,7 @@ export const typography = {
   // Barlow — ONLY for very short uppercase decorators: eyebrows, day initials
   stat: {
     fontFamily: fontFamilies.barlow,
-    fontSize: 10,
+    fontSize: 11,
     letterSpacing: 1.4,
     textTransform: "uppercase" as const,
   },
