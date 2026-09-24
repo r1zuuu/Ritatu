@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MacroConfirmSheet } from "../../components/MacroConfirmSheet";
+import { useToast } from "../../components/Toast";
 import { toDateKey } from "../../core/date";
 import { getSectionByTime, isSection, type Section } from "../../core/section";
 import { cacheMealsForDay, getCachedMealsForDay } from "../../data/mealRepository";
@@ -25,6 +26,7 @@ export const HomeScreen = () => {
   const { profile } = useUserProfile();
   const insets = useSafeAreaInsets();
   const { dateOffset, setDateOffset, selectedDate, addMeal } = useMeals();
+  const toast = useToast();
   const selectedKey = toDateKey(selectedDate);
   const [meals, setMeals] = useState<MealEntry[]>([]);
   const [customProducts, setCustomProducts] = useState<FoodItem[]>([]);
@@ -93,20 +95,6 @@ export const HomeScreen = () => {
     setRefreshKey((k) => k + 1);
   }, [addFoodSection, addMeal, user]);
 
-  const handleRemoveMeal = useCallback(async (id: string) => {
-    if (!user) return;
-    const updated = meals.filter((m) => m.id !== id);
-    await cacheMealsForDay(user.uid, selectedDate, updated);
-    setMeals(updated);
-  }, [meals, selectedDate, user]);
-
-  const handleMoveMeal = useCallback(async (id: string, toSection: Section) => {
-    if (!user) return;
-    const updated = meals.map((m) => m.id === id ? { ...m, section: toSection } : m);
-    await cacheMealsForDay(user.uid, selectedDate, updated);
-    setMeals(updated);
-  }, [meals, selectedDate, user]);
-
   const handleEditMealSave = useCallback(async (draft: MealDraft) => {
     if (!user || !editingMeal) return;
     const updated = meals.map((m) =>
@@ -119,13 +107,31 @@ export const HomeScreen = () => {
     setEditingMeal(null);
   }, [editingMeal, meals, selectedDate, user]);
 
+  // No confirm dialog: the delete is instant and the toast offers an undo,
+  // which is faster when intended and still safe when it was a slip.
   const handleEditMealDelete = useCallback(async () => {
     if (!user || !editingMeal) return;
-    const updated = meals.filter((m) => m.id !== editingMeal.id);
-    await cacheMealsForDay(user.uid, selectedDate, updated);
+    const removed = editingMeal;
+    const day = selectedDate;
+    const updated = meals.filter((m) => m.id !== removed.id);
+    await cacheMealsForDay(user.uid, day, updated);
     setMeals(updated);
     setEditingMeal(null);
-  }, [editingMeal, meals, selectedDate, user]);
+    toast({
+      message: `Usunięto: ${removed.name}`,
+      action: {
+        label: "Cofnij",
+        onPress: () => {
+          void (async () => {
+            const current = await getCachedMealsForDay(user.uid, day);
+            const restored = [removed, ...current].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+            await cacheMealsForDay(user.uid, day, restored);
+            setRefreshKey((k) => k + 1);
+          })();
+        },
+      },
+    });
+  }, [editingMeal, meals, selectedDate, toast, user]);
 
   // Memoized: the sheet resets its fields whenever the draft object changes,
   // so a fresh literal per render wiped the weight the user was typing.
@@ -155,8 +161,6 @@ export const HomeScreen = () => {
         setDateOffset={setDateOffset}
         profile={profile}
         onAddFood={setAddFoodSection}
-        onRemoveMeal={handleRemoveMeal}
-        onMoveMeal={handleMoveMeal}
         onEditMeal={setEditingMeal}
       />
 

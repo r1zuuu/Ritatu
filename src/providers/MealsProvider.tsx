@@ -9,7 +9,10 @@ import {
   useState,
 } from "react";
 import { AppState } from "react-native";
-import { dateWithOffset, toDateKey } from "../core/date";
+import { dateWithOffset, formatDayLabel, toDateKey } from "../core/date";
+import { calculateMealMacros } from "../core/macroCalculator";
+import { isSection, SECTION_GENITIVE } from "../core/section";
+import { useToast } from "../components/Toast";
 import { addMeal as addMealToRepository } from "../data/mealRepository";
 import type { MealDraft } from "../data/types";
 import { useAuth } from "./AuthProvider";
@@ -27,6 +30,7 @@ const MealsContext = createContext<MealsContextValue | null>(null);
 
 export const MealsProvider = ({ children }: PropsWithChildren) => {
   const { user } = useAuth();
+  const toast = useToast();
   const [dateOffset, setDateOffset] = useState(0);
   const [todayKey, setTodayKey] = useState(() => toDateKey(new Date()));
   const todayRef = useRef(todayKey);
@@ -68,8 +72,15 @@ export const MealsProvider = ({ children }: PropsWithChildren) => {
         note: draft.note ?? null,
         confidence: draft.confidence,
       });
+      // One confirmation for every add path; names the day when it is not today.
+      const parts = [
+        isSection(draft.section) ? `Dodano do ${SECTION_GENITIVE[draft.section]}` : "Dodano",
+        `${Math.round(calculateMealMacros(draft, draft.weightG).kcal)} kcal`,
+      ];
+      if (dateOffset !== 0) parts.push(formatDayLabel(dateOffset, dateWithOffset(dateOffset)).toLowerCase());
+      toast({ message: parts.join(" · ") });
     },
-    [dateOffset, user],
+    [dateOffset, toast, user],
   );
 
   const value = useMemo(
