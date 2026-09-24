@@ -6,6 +6,7 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { MacroConfirmSheet } from "../components/MacroConfirmSheet";
 import { Screen } from "../components/Screen";
+import { formatDayLabel } from "../core/date";
 import type { MealDraft } from "../data/types";
 import { getDeveloperSettings } from "../data/developerRepository";
 import { useMeals } from "../providers/MealsProvider";
@@ -22,7 +23,7 @@ const statusTitle: Record<LookupError["status"], string> = {
 };
 
 export const BarcodeScanScreen = () => {
-  const { addMeal } = useMeals();
+  const { addMeal, dateOffset, selectedDate } = useMeals();
   const params = useLocalSearchParams<{ section?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [loading, setLoading] = useState(false);
@@ -206,7 +207,9 @@ export const BarcodeScanScreen = () => {
             <Icon name="chevron-left" size={20} color={colors.paper} />
           </Pressable>
           <View style={styles.headerText}>
-            <Text style={styles.eyebrow}>Skan produktu</Text>
+            <Text style={styles.eyebrow}>
+              Skan produktu{dateOffset !== 0 ? ` · ${formatDayLabel(dateOffset, selectedDate)}` : ""}
+            </Text>
             <Text style={styles.title}>Ustaw kod w ramce</Text>
           </View>
           <Pressable
@@ -275,7 +278,7 @@ export const BarcodeScanScreen = () => {
         onConfirm={async (confirmed) => {
           await addMeal(confirmed);
           setDraft(null);
-          router.replace("/home");
+          router.back();
         }}
       />
     </View>

@@ -32,12 +32,3 @@ export const addMeal = async (meal: Omit<MealEntry, "id">): Promise<string> => {
   return id;
 };
 
-export const watchMealsForDay = (
-  uid: string,
-  date: Date,
-  onChange: (meals: MealEntry[]) => void,
-  onError: (error: Error) => void,
-): (() => void) => {
-  getCachedMealsForDay(uid, date).then(onChange).catch(onError);
-  return () => {};
-};

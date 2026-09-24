@@ -1,17 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MacroConfirmSheet } from "../../components/MacroConfirmSheet";
-import { dateWithOffset, toDateKey } from "../../core/date";
+import { toDateKey } from "../../core/date";
 import type { Section } from "../../core/section";
-import { addMeal as addMealRepo, cacheMealsForDay, getCachedMealsForDay } from "../../data/mealRepository";
+import { cacheMealsForDay, getCachedMealsForDay } from "../../data/mealRepository";
 import { deleteProgressPhoto, getProgressPhotos, saveProgressPhotos } from "../../data/progressPhotoRepository";
 import type { MealDraft, MealEntry, ProgressPhoto, WeightEntry } from "../../data/types";
 import { CUSTOM_PRODUCTS_KEY } from "../../data/developerRepository";
 import { getWeights, saveWeights as persistWeights } from "../../data/weightRepository";
 import { useAuth } from "../../providers/AuthProvider";
+import { useMeals } from "../../providers/MealsProvider";
 import { useUserProfile } from "../../providers/UserProfileProvider";
 import { colors } from "../../theme/colors";
 import { sh } from "../../theme/sharedStyles";
@@ -27,17 +28,13 @@ import type { FoodItem } from "./types";
 
 type HomeTab = "diary" | "measurements";
 
-function todayDateKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-}
-
 export const HomeScreen = () => {
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const insets = useSafeAreaInsets();
+  const { dateOffset, setDateOffset, selectedDate, addMeal } = useMeals();
+  const selectedKey = toDateKey(selectedDate);
   const [tab, setTab] = useState<HomeTab>("diary");
-  const [dateOffset, setDateOffset] = useState(0);
   const [meals, setMeals] = useState<MealEntry[]>([]);
   const [weights, setWeights] = useState<WeightEntry[]>([]);
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
@@ -53,36 +50,17 @@ export const HomeScreen = () => {
   const [editingMeal, setEditingMeal] = useState<MealEntry | null>(null);
   const lastAmountsRef = useRef<Map<string | number, string>>(new Map());
 
-  // Reset to today when app returns from background after midnight
-  useEffect(() => {
-    const lastKey = { current: todayDateKey() };
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
-        const newKey = todayDateKey();
-        if (newKey !== lastKey.current) {
-          lastKey.current = newKey;
-          setDateOffset(0);
-          setRefreshKey((k) => k + 1);
-        }
-      }
-    });
-    return () => sub.remove();
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    void getCachedMealsForDay(user.uid, dateWithOffset(dateOffset)).then(setMeals);
-  }, [dateOffset, refreshKey, user]);
-
+  // One loader for day changes, returns from the scanner/photo screens and
+  // saves. The guard drops a slow read for a day the user already left.
   useFocusEffect(
     useCallback(() => {
       if (!user) return undefined;
       let active = true;
-      void getCachedMealsForDay(user.uid, dateWithOffset(dateOffset)).then((next) => {
+      void getCachedMealsForDay(user.uid, selectedDate).then((next) => {
         if (active) setMeals(next);
       });
       return () => { active = false; };
-    }, [dateOffset, user]),
+    }, [selectedKey, refreshKey, user]),
   );
 
   useEffect(() => {
@@ -110,15 +88,13 @@ export const HomeScreen = () => {
     const pw = food.portionWeightG ?? 100;
     const weightG = food.per100 ? amount : amount * pw;
     const toPer100 = (total: number) => (food.per100 ? total : pw > 0 ? (total / pw) * 100 : 0);
-    await addMealRepo({
-      userId: user.uid,
+    await addMeal({
       name: food.name,
       weightG,
       proteinPer100g: toPer100(food.protein),
       carbsPer100g: toPer100(food.carbs),
       fatPer100g: toPer100(food.fat),
       kcalPer100g: toPer100(food.calories),
-      timestamp: dateWithOffset(dateOffset),
       source: food.code ? "barcode" : food.oneTime ? "quick" : "manual",
       section,
       barcode: food.code ?? null,
@@ -127,21 +103,21 @@ export const HomeScreen = () => {
     setSelectedFood(null);
     setAddFoodSection(null);
     setRefreshKey((k) => k + 1);
-  }, [addFoodSection, dateOffset, user]);
+  }, [addFoodSection, addMeal, user]);
 
   const handleRemoveMeal = useCallback(async (id: string) => {
     if (!user) return;
     const updated = meals.filter((m) => m.id !== id);
-    await cacheMealsForDay(user.uid, dateWithOffset(dateOffset), updated);
+    await cacheMealsForDay(user.uid, selectedDate, updated);
     setMeals(updated);
-  }, [dateOffset, meals, user]);
+  }, [meals, selectedDate, user]);
 
   const handleMoveMeal = useCallback(async (id: string, toSection: Section) => {
     if (!user) return;
     const updated = meals.map((m) => m.id === id ? { ...m, section: toSection } : m);
-    await cacheMealsForDay(user.uid, dateWithOffset(dateOffset), updated);
+    await cacheMealsForDay(user.uid, selectedDate, updated);
     setMeals(updated);
-  }, [dateOffset, meals, user]);
+  }, [meals, selectedDate, user]);
 
   const handleEditMealSave = useCallback(async (draft: MealDraft) => {
     if (!user || !editingMeal) return;
@@ -150,18 +126,18 @@ export const HomeScreen = () => {
         ? { ...m, name: draft.name, weightG: draft.weightG, proteinPer100g: draft.proteinPer100g, carbsPer100g: draft.carbsPer100g, fatPer100g: draft.fatPer100g, kcalPer100g: draft.kcalPer100g ?? m.kcalPer100g, section: draft.section ?? m.section }
         : m,
     );
-    await cacheMealsForDay(user.uid, dateWithOffset(dateOffset), updated);
+    await cacheMealsForDay(user.uid, selectedDate, updated);
     setMeals(updated);
     setEditingMeal(null);
-  }, [dateOffset, editingMeal, meals, user]);
+  }, [editingMeal, meals, selectedDate, user]);
 
   const handleEditMealDelete = useCallback(async () => {
     if (!user || !editingMeal) return;
     const updated = meals.filter((m) => m.id !== editingMeal.id);
-    await cacheMealsForDay(user.uid, dateWithOffset(dateOffset), updated);
+    await cacheMealsForDay(user.uid, selectedDate, updated);
     setMeals(updated);
     setEditingMeal(null);
-  }, [dateOffset, editingMeal, meals, user]);
+  }, [editingMeal, meals, selectedDate, user]);
 
   const handleAddWeight = useCallback(async (kg: number) => {
     const now = new Date();
@@ -185,7 +161,7 @@ export const HomeScreen = () => {
     setProgressPhotos(next);
   }, []);
 
-  const currentDate = dateWithOffset(dateOffset);
+  const currentDate = selectedDate;
   const currentWeight = weights.at(-1)?.weightKg;
 
   return (

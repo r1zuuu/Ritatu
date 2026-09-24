@@ -13,6 +13,16 @@ export const startOfDay = (date: Date) =>
 export const endOfDay = (date: Date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
 
+const MONTHS_SHORT = ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"];
+const WEEKDAYS_SHORT = ["nd", "pn", "wt", "śr", "cz", "pt", "sb"];
+
+// "Dziś" / "Wczoraj" / "śr, 21 wrz" for a diary day `offset` days from today.
+export const formatDayLabel = (offset: number, date: Date) => {
+  if (offset === 0) return "Dziś";
+  if (offset === -1) return "Wczoraj";
+  return `${WEEKDAYS_SHORT[date.getDay()]}, ${date.getDate()} ${MONTHS_SHORT[date.getMonth()]}`;
+};
+
 export const formatShortDate = (date: Date) =>
   new Intl.DateTimeFormat("pl-PL", {
     day: "2-digit",

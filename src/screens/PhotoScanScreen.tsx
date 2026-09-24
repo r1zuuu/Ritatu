@@ -17,6 +17,7 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { MacroConfirmSheet } from "../components/MacroConfirmSheet";
 import { Screen } from "../components/Screen";
+import { formatDayLabel } from "../core/date";
 import { calculateMealMacros, totalsToPer100g } from "../core/macroCalculator";
 import type { MealDraft, VisionItem, VisionMealResult } from "../data/types";
 import { getDeveloperSettings } from "../data/developerRepository";
@@ -28,7 +29,7 @@ import { typography } from "../theme/typography";
 type Phase = "idle" | "ready" | "analyzing" | "done";
 
 export const PhotoScanScreen = () => {
-  const { addMeal } = useMeals();
+  const { addMeal, dateOffset, selectedDate } = useMeals();
   const params = useLocalSearchParams<{ section?: string }>();
 
   const [phase, setPhase] = useState<Phase>("idle");
@@ -205,7 +206,9 @@ export const PhotoScanScreen = () => {
           >
             <Icon name="chevron-left" size={22} color={colors.text} />
           </Pressable>
-          <Text style={styles.eyebrow}>Zdjęcie posiłku</Text>
+          <Text style={styles.eyebrow}>
+            Zdjęcie posiłku{dateOffset !== 0 ? ` · ${formatDayLabel(dateOffset, selectedDate)}` : ""}
+          </Text>
           <Text style={styles.title}>
             {phase === "idle"
               ? "Zrób zdjęcie i opisz posiłek"
@@ -331,7 +334,7 @@ export const PhotoScanScreen = () => {
           await addMeal(confirmed);
           setDraft(null);
           setItems([]);
-          router.replace("/home");
+          router.back();
         }}
         onRefine={imageBase64 ? handleRefine : undefined}
       />
