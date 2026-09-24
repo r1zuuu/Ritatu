@@ -2,6 +2,7 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "ex
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Easing, Linking, Pressable, StyleSheet, Text, Vibration, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { MacroConfirmSheet } from "../components/MacroConfirmSheet";
@@ -13,18 +14,24 @@ import { getDeveloperSettings } from "../data/developerRepository";
 import { useMeals } from "../providers/MealsProvider";
 import { lookupProductByBarcode, type ProductLookupResult } from "../services/openFoodFactsService";
 import { colors } from "../theme/colors";
+import { radius, space } from "../theme/layout";
 import { typography } from "../theme/typography";
 
 type LookupError = Extract<ProductLookupResult, { ok: false }>;
 
 const statusTitle: Record<LookupError["status"], string> = {
   not_found: "Nie znaleziono produktu",
-  incomplete: "Brakuje danych makro",
-  network_error: "Problem z polaczeniem",
+  incomplete: "Brakuje wartości odżywczych",
+  network_error: "Problem z połączeniem",
 };
+
+// After the result sheet closes the same code is usually still in frame;
+// without a pause it is scanned again and the sheet pops straight back.
+const RESCAN_COOLDOWN_MS = 1500;
 
 export const BarcodeScanScreen = () => {
   const { addMeal, dateOffset, selectedDate } = useMeals();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ section?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [loading, setLoading] = useState(false);
@@ -32,7 +39,10 @@ export const BarcodeScanScreen = () => {
   const [draft, setDraft] = useState<MealDraft | null>(null);
   const [torch, setTorch] = useState(false);
   const scanLockedRef = useRef(false);
+  const cooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => () => { if (cooldownRef.current) clearTimeout(cooldownRef.current); }, []);
 
   useEffect(() => {
     if (loading || draft) {
@@ -42,18 +52,8 @@ export const BarcodeScanScreen = () => {
 
     const animation = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 900,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: 700,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
+        Animated.timing(pulse, { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]),
     );
 
@@ -62,10 +62,11 @@ export const BarcodeScanScreen = () => {
   }, [draft, loading, pulse]);
 
   const resetScan = () => {
-    scanLockedRef.current = false;
     setLookupError(null);
     setDraft(null);
     setLoading(false);
+    if (cooldownRef.current) clearTimeout(cooldownRef.current);
+    cooldownRef.current = setTimeout(() => { scanLockedRef.current = false; }, RESCAN_COOLDOWN_MS);
   };
 
   // Back to the diary with the search sheet open for the same meal.
@@ -127,26 +128,27 @@ export const BarcodeScanScreen = () => {
   };
 
   const pulseStyle = {
-    opacity: pulse.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0.4, 0.9],
-    }),
-    transform: [
-      {
-        scale: pulse.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.97, 1],
-        }),
-      },
-    ],
+    opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] }),
+    transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) }],
   };
+
+  const backButton = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Wróć"
+      style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+      onPress={() => router.back()}
+    >
+      <Icon name="chevron-left" size={22} color={colors.text} />
+    </Pressable>
+  );
 
   if (!permission) {
     return (
       <Screen>
         <View style={styles.center}>
-          <ActivityIndicator color={colors.text} />
-          <Text style={styles.permissionBody}>Sprawdzam dostep do aparatu.</Text>
+          <ActivityIndicator color={colors.accent} />
+          <Text style={styles.permissionBody}>Sprawdzam dostęp do aparatu...</Text>
         </View>
       </Screen>
     );
@@ -155,23 +157,21 @@ export const BarcodeScanScreen = () => {
   if (!permission.granted) {
     return (
       <Screen>
+        {backButton}
         <View style={styles.center}>
-          <Text style={styles.permissionTitle}>Aparat jest potrzebny do skanowania kodow.</Text>
+          <View style={styles.permissionIcon}>
+            <Icon name="barcode" size={30} color={colors.accent} />
+          </View>
+          <Text style={styles.permissionTitle}>Aparat jest potrzebny do skanowania kodów</Text>
           <Text style={styles.permissionBody}>
-            Ritatu uzyje aparatu tylko do odczytania kodu kreskowego produktu.
+            Ritatu używa aparatu tylko do odczytania kodu kreskowego z opakowania.
           </Text>
           <Button
-            title={permission.canAskAgain ? "Daj dostep" : "Otwórz ustawienia"}
+            title={permission.canAskAgain ? "Zezwól na dostęp" : "Otwórz ustawienia"}
+            icon="camera"
             onPress={() => (permission.canAskAgain ? void requestPermission() : void Linking.openSettings())}
-            accessibilityHint="Otwiera prosbe systemowa o dostep do aparatu"
           />
-          <Button
-            title="Wyszukaj po nazwie"
-            icon="search"
-            variant="secondary"
-            onPress={goSearch}
-            accessibilityHint="Wraca do wyszukiwarki produktów"
-          />
+          <Button title="Wyszukaj po nazwie" icon="search" variant="secondary" onPress={goSearch} />
         </View>
       </Screen>
     );
@@ -180,28 +180,19 @@ export const BarcodeScanScreen = () => {
   return (
     <View style={styles.wrap}>
       <CameraView
-        accessibilityLabel="Skaner kodow kreskowych"
-        style={styles.camera}
+        accessibilityLabel="Skaner kodów kreskowych"
+        style={StyleSheet.absoluteFill}
         facing="back"
         enableTorch={torch}
         onBarcodeScanned={handleScan}
-        barcodeScannerSettings={{
-          barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "code128"],
-        }}
+        barcodeScannerSettings={{ barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "code128"] }}
       />
 
-      <View pointerEvents="none" style={styles.scrim} />
+      <View style={styles.scrim} />
 
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingBottom: insets.bottom + 24, paddingTop: insets.top + 12 }]}>
         <View style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Wróć"
-            style={({ pressed }) => [styles.back, pressed && styles.pressed]}
-            onPress={() => router.back()}
-          >
-            <Icon name="chevron-left" size={20} color={colors.paper} />
-          </Pressable>
+          {backButton}
           <View style={styles.headerText}>
             <Text style={styles.eyebrow}>
               Skan produktu{dateOffset !== 0 ? ` · ${formatDayLabel(dateOffset, selectedDate)}` : ""}
@@ -211,10 +202,10 @@ export const BarcodeScanScreen = () => {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={torch ? "Wyłącz latarkę" : "Włącz latarkę"}
-            style={({ pressed }) => [styles.back, torch && styles.torchOn, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.iconButton, torch && styles.torchOn, pressed && styles.pressed]}
             onPress={() => setTorch((v) => !v)}
           >
-            <Icon name={torch ? "flash-on" : "flash-off"} size={20} color={torch ? colors.warmBlack : colors.paper} />
+            <Icon name={torch ? "flash-on" : "flash-off"} size={20} color={torch ? colors.warmBlack : colors.text} />
           </Pressable>
         </View>
 
@@ -234,9 +225,7 @@ export const BarcodeScanScreen = () => {
               <ActivityIndicator color={colors.accent} />
               <Text style={styles.panelText}>Sprawdzam produkt...</Text>
             </View>
-          ) : null}
-
-          {lookupError ? (
+          ) : lookupError ? (
             <View style={styles.errorBox}>
               <View style={styles.errorTitleRow}>
                 <Icon name="alert" size={18} color={colors.danger} />
@@ -244,26 +233,13 @@ export const BarcodeScanScreen = () => {
               </View>
               <Text style={styles.errorText}>{lookupError.warning}</Text>
               <View style={styles.actions}>
-                <Button
-                  title="Skanuj ponownie"
-                  icon="scan"
-                  variant="secondary"
-                  onPress={resetScan}
-                  accessibilityHint="Wraca do aktywnego skanowania"
-                />
-                <Button
-                  title="Wyszukaj po nazwie"
-                  icon="search"
-                  onPress={goSearch}
-                  accessibilityHint="Wraca do wyszukiwarki produktów"
-                />
+                <Button title="Skanuj ponownie" icon="scan" variant="secondary" onPress={resetScan} />
+                <Button title="Wyszukaj po nazwie" icon="search" onPress={goSearch} />
               </View>
             </View>
-          ) : null}
-
-          {!loading && !lookupError ? (
-            <Text style={styles.panelText}>Skaner jest aktywny. Przytrzymaj telefon stabilnie.</Text>
-          ) : null}
+          ) : (
+            <Text style={styles.panelText}>Skaner jest aktywny. Trzymaj telefon stabilnie, 15–20 cm od kodu.</Text>
+          )}
         </View>
       </View>
 
@@ -281,170 +257,74 @@ export const BarcodeScanScreen = () => {
   );
 };
 
+const CORNER = 40;
+
 const styles = StyleSheet.create({
-  wrap: {
-    flex: 1,
-    backgroundColor: colors.warmBlack,
-  },
-  camera: {
-    bottom: 0,
-    left: 0,
-    position: "absolute",
-    right: 0,
-    top: 0,
-  },
-  scrim: {
-    backgroundColor: "rgba(7, 6, 4, 0.34)",
-    bottom: 0,
-    left: 0,
-    position: "absolute",
-    right: 0,
-    top: 0,
-  },
-  content: {
-    flex: 1,
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingBottom: 36,
-    paddingTop: 56,
-  },
-  header: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: 12,
-  },
+  wrap: { backgroundColor: colors.background, flex: 1 },
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(8,7,5,0.35)" },
+  content: { flex: 1, justifyContent: "space-between", paddingHorizontal: space.xl },
+  header: { alignItems: "center", flexDirection: "row", gap: 12 },
   headerText: { flex: 1 },
-  torchOn: { backgroundColor: colors.accent },
-  eyebrow: {
-    color: colors.accentHover,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  title: {
-    color: colors.paper,
-    fontSize: 34,
-    fontWeight: "900",
-  },
-  subtitle: {
-    color: colors.paper,
-    fontSize: 16,
-    fontWeight: "700",
-    opacity: 0.82,
-  },
-  viewfinderWrap: {
+  iconButton: {
     alignItems: "center",
+    backgroundColor: colors.scrim,
+    borderColor: colors.borderMid,
+    borderRadius: 22,
+    borderWidth: 1,
+    height: 44,
     justifyContent: "center",
+    width: 44,
   },
+  torchOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  pressed: { opacity: 0.86, transform: [{ scale: 0.96 }] },
+  eyebrow: { ...typography.stat, color: colors.accentHover },
+  title: { ...typography.headline, color: colors.text },
+
+  viewfinderWrap: { alignItems: "center", justifyContent: "center" },
   viewfinderPulse: {
-    position: "absolute",
-    width: 250,
-    height: 154,
+    backgroundColor: colors.accentA,
+    borderColor: colors.accent,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.accent,
-    backgroundColor: "rgba(229, 155, 91, 0.08)",
-  },
-  viewfinder: {
-    width: 270,
-    height: 174,
-    borderRadius: 20,
-  },
-  corner: {
+    height: 154,
     position: "absolute",
-    width: 42,
-    height: 42,
-    borderColor: colors.accentHover,
+    width: 250,
   },
-  cornerTopLeft: {
-    left: 0,
-    top: 0,
-    borderLeftWidth: 4,
-    borderTopWidth: 4,
-    borderTopLeftRadius: 18,
-  },
-  cornerTopRight: {
-    right: 0,
-    top: 0,
-    borderRightWidth: 4,
-    borderTopWidth: 4,
-    borderTopRightRadius: 18,
-  },
-  cornerBottomLeft: {
-    left: 0,
-    bottom: 0,
-    borderLeftWidth: 4,
-    borderBottomWidth: 4,
-    borderBottomLeftRadius: 18,
-  },
-  cornerBottomRight: {
-    right: 0,
-    bottom: 0,
-    borderRightWidth: 4,
-    borderBottomWidth: 4,
-    borderBottomRightRadius: 18,
-  },
+  viewfinder: { borderRadius: 20, height: 174, width: 270 },
+  corner: { borderColor: colors.accentHover, height: CORNER, position: "absolute", width: CORNER },
+  cornerTopLeft: { borderLeftWidth: 4, borderTopLeftRadius: 18, borderTopWidth: 4, left: 0, top: 0 },
+  cornerTopRight: { borderRightWidth: 4, borderTopRightRadius: 18, borderTopWidth: 4, right: 0, top: 0 },
+  cornerBottomLeft: { borderBottomLeftRadius: 18, borderBottomWidth: 4, borderLeftWidth: 4, bottom: 0, left: 0 },
+  cornerBottomRight: { borderBottomRightRadius: 18, borderBottomWidth: 4, borderRightWidth: 4, bottom: 0, right: 0 },
+
   panel: {
-    minHeight: 112,
-    borderRadius: 16,
-    backgroundColor: "rgba(19, 19, 26, 0.92)",
-    borderWidth: 1,
+    backgroundColor: "rgba(24,20,16,0.94)",
     borderColor: colors.borderMid,
-    padding: 14,
-    justifyContent: "center",
+    borderRadius: radius.lg,
+    borderWidth: 1,
     gap: 12,
-  },
-  panelText: {
-    ...typography.body,
-    color: colors.paper,
-  },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  errorBox: {
-    gap: 10,
-  },
-  errorTitleRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 8,
-  },
-  errorTitle: {
-    ...typography.section,
-    color: colors.paper,
-  },
-  errorText: {
-    ...typography.body,
-    color: colors.mutedMid,
-  },
-  actions: {
-    gap: 10,
-  },
-  center: {
-    flex: 1,
     justifyContent: "center",
-    gap: 14,
+    minHeight: 96,
+    padding: space.lg,
   },
-  permissionTitle: {
-    ...typography.title,
-    color: colors.text,
-  },
-  permissionBody: {
-    ...typography.body,
-    color: colors.muted,
-  },
-  back: {
+  panelText: { ...typography.body, color: colors.text },
+  statusRow: { alignItems: "center", flexDirection: "row", gap: 10 },
+  errorBox: { gap: 10 },
+  errorTitleRow: { alignItems: "center", flexDirection: "row", gap: 8 },
+  errorTitle: { ...typography.section, color: colors.text },
+  errorText: { ...typography.caption, color: colors.mutedMid },
+  actions: { gap: 10 },
+
+  center: { flex: 1, gap: 14, justifyContent: "center" },
+  permissionIcon: {
     alignItems: "center",
-    backgroundColor: "rgba(19,19,26,0.72)",
-    borderRadius: 10,
-    height: 36,
+    backgroundColor: colors.accentA,
+    borderRadius: 32,
+    height: 64,
     justifyContent: "center",
-    marginTop: 2,
-    width: 36,
+    marginBottom: 4,
+    width: 64,
   },
-  pressed: {
-    opacity: 0.86,
-    transform: [{ scale: 0.96 }],
-  },
+  permissionTitle: { ...typography.headline, color: colors.text },
+  permissionBody: { ...typography.body, color: colors.mutedMid, marginBottom: 8 },
 });
