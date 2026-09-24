@@ -16,8 +16,8 @@ type ShownToast = ToastOptions & { id: number };
 
 const ToastContext = createContext<(toast: ToastOptions) => void>(() => {});
 
-// Sits above the tab bar, so it never covers the FAB or the tabs.
-const ABOVE_TAB_BAR = 92;
+// Sits above the tab bar and the FAB that floats over it, covering neither.
+const ABOVE_TAB_BAR = 150;
 
 export const ToastProvider = ({ children }: PropsWithChildren) => {
   const insets = useSafeAreaInsets();

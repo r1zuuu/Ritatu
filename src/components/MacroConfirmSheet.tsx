@@ -476,9 +476,9 @@ const s = StyleSheet.create({
     fontFamily: fontFamilies.semibold,
     fontSize: 24,
     fontVariant: ["tabular-nums"],
-    minWidth: 72,
     paddingVertical: 4,
     textAlign: "right",
+    width: 96,
   },
 
   refineHint: { alignItems: "center", alignSelf: "center", flexDirection: "row", gap: 6, minHeight: 44 },
