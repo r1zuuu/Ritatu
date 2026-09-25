@@ -11,6 +11,7 @@ import { formatDayLabel } from "../core/date";
 import { getSectionByTime } from "../core/section";
 import type { MealDraft } from "../data/types";
 import { getDeveloperSettings } from "../data/developerRepository";
+import { draftToFavorite, useFavorites } from "../data/favoritesRepository";
 import { useMeals } from "../providers/MealsProvider";
 import { lookupProductByBarcode, type ProductLookupResult } from "../services/openFoodFactsService";
 import { colors } from "../theme/colors";
@@ -32,6 +33,7 @@ const RESCAN_COOLDOWN_MS = 1500;
 export const BarcodeScanScreen = () => {
   const { addMeal, dateOffset, selectedDate } = useMeals();
   const insets = useSafeAreaInsets();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const params = useLocalSearchParams<{ section?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [loading, setLoading] = useState(false);
@@ -246,6 +248,8 @@ export const BarcodeScanScreen = () => {
       <MacroConfirmSheet
         visible={Boolean(draft)}
         draft={draft}
+        favorite={draft ? isFavorite({ code: draft.barcode, name: draft.name }) : false}
+        onToggleFavorite={(current) => void toggleFavorite(draftToFavorite(current))}
         onClose={resetScan}
         onConfirm={async (confirmed) => {
           await addMeal(confirmed);

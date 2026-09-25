@@ -8,6 +8,7 @@ import { colors } from "../theme/colors";
 import { radius, space } from "../theme/layout";
 import { fontFamilies, typography } from "../theme/typography";
 import { Button } from "./Button";
+import { FavoriteButton } from "./FavoriteButton";
 import { Icon } from "./Icon";
 import { SegmentedControl } from "./SegmentedControl";
 import { Sheet } from "./Sheet";
@@ -26,6 +27,9 @@ type MacroConfirmSheetProps = {
   onRefine?: (userContext: string, current: RefineInput) => Promise<void>;
   onDelete?: () => Promise<void>;
   editingMealId?: string;
+  favorite?: boolean;
+  // Gets the meal as currently edited (name, grams), not the original draft.
+  onToggleFavorite?: (current: MealDraft) => void;
 };
 
 const CONFIDENCE: Record<Confidence, { label: string; color: string }> = {
@@ -79,6 +83,8 @@ export const MacroConfirmSheet = ({
   onRefine,
   onDelete,
   editingMealId,
+  favorite = false,
+  onToggleFavorite,
 }: MacroConfirmSheetProps) => {
   const isEditing = Boolean(editingMealId);
   const itemsMode = items !== undefined;
@@ -194,16 +200,33 @@ export const MacroConfirmSheet = ({
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       >
-        <TextInput
-          accessibilityLabel="Nazwa posiłku"
-          style={s.nameInput}
-          value={name}
-          onChangeText={setName}
-          editable={!busy}
-          multiline
-          blurOnSubmit
-          returnKeyType="done"
-        />
+        <View style={s.nameRow}>
+          <TextInput
+            accessibilityLabel="Nazwa posiłku"
+            style={s.nameInput}
+            value={name}
+            onChangeText={setName}
+            editable={!busy}
+            multiline
+            blurOnSubmit
+            returnKeyType="done"
+          />
+          {onToggleFavorite && !itemsMode ? (
+            <FavoriteButton
+              active={favorite}
+              onPress={() => {
+                const grams = parseDecimal(weight);
+                const current = { ...draft, name: name.trim() || draft.name, section };
+                if (quickMode) {
+                  const kcal = parseDecimal(kcalText);
+                  onToggleFavorite(Number.isFinite(kcal) ? { ...current, kcalPer100g: (kcal * 100) / (draft.weightG || 100) } : current);
+                } else {
+                  onToggleFavorite(Number.isFinite(grams) && grams > 0 ? { ...current, weightG: grams } : current);
+                }
+              }}
+            />
+          ) : null}
+        </View>
 
         {confidence ? (
           <View style={[s.chip, { backgroundColor: `${confidence.color}1F` }]}>
@@ -390,7 +413,8 @@ const s = StyleSheet.create({
   row: { flexDirection: "row", gap: 10 },
   pressed: { opacity: 0.6 },
 
-  nameInput: { ...typography.headline, color: colors.text, padding: 0 },
+  nameRow: { alignItems: "center", flexDirection: "row", gap: 12 },
+  nameInput: { ...typography.headline, color: colors.text, flex: 1, padding: 0 },
   chip: {
     alignItems: "center",
     alignSelf: "flex-start",

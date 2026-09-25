@@ -7,6 +7,8 @@ import { Sheet } from "../../components/Sheet";
 import { dateWithOffset } from "../../core/date";
 import { countMatches, matchScore, normalize, tokenize } from "../../core/search";
 import { isSection, SECTION_GENITIVE } from "../../core/section";
+import { formatDecimal } from "../../core/numberFormat";
+import { favoriteKey } from "../../data/favoritesRepository";
 import { getCachedMealsForDay } from "../../data/mealRepository";
 import { searchProductsByName, type OpenFoodFactsSearchItem } from "../../services/openFoodFactsService";
 import { colors } from "../../theme/colors";
@@ -45,20 +47,46 @@ function ActionTile({ icon, label, onPress }: { icon: IconName; label: string; o
   );
 }
 
-const TABS = [
-  { value: "search" as const, label: "Szukaj" },
-  { value: "recent" as const, label: "Ostatnie" },
-  { value: "custom" as const, label: "Własne" },
+type Tab = "search" | "favorites" | "recent" | "custom";
+
+const TABS: Array<{ value: Tab; label: string }> = [
+  { value: "search", label: "Szukaj" },
+  { value: "favorites", label: "Ulubione" },
+  { value: "recent", label: "Ostatnie" },
+  { value: "custom", label: "Własne" },
 ];
 
 // Always say what the kcal is per: "250 kcal" next to "500 g" read as the pack.
 const kcalLabel = (item: FoodItem) => `${item.calories} kcal ${item.per100 ? "/ 100 g" : "/ porcja"}`;
+
+// A favorite shows its usual portion ("150 g · 248 kcal"): that is what you log.
+const rowDetail = (item: FoodItem) => {
+  if (item.defaultAmount) {
+    const amount = item.defaultAmount;
+    const kcal = Math.round(item.per100 ? (item.calories * amount) / 100 : item.calories * amount);
+    return `${item.per100 ? `${formatDecimal(amount, 0)} g` : `${formatDecimal(amount, 1)} × porcja`} · ${kcal} kcal`;
+  }
+  return item.detail === "100 g" ? kcalLabel(item) : `${item.detail} · ${kcalLabel(item)}`;
+};
+
+// First occurrence wins, so a favorite is not listed again from the food DB.
+const uniqueByKey = (items: FoodItem[]) => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = favoriteKey(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 type Props = {
   visible: boolean;
   section: string;
   uid: string;
   customProducts: FoodItem[];
+  favorites: FoodItem[];
+  onRemoveFavorite: (food: FoodItem) => void;
   onClose: () => void;
   onSelectFood: (food: FoodItem) => void;
   onDeleteCustom: (food: FoodItem) => void;
@@ -73,6 +101,8 @@ export const AddFoodSheet = ({
   section,
   uid,
   customProducts,
+  favorites,
+  onRemoveFavorite,
   onClose,
   onSelectFood,
   onDeleteCustom,
@@ -82,7 +112,7 @@ export const AddFoodSheet = ({
   onAnalyzePhoto,
 }: Props) => {
   const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"search" | "recent" | "custom">("search");
+  const [activeTab, setActiveTab] = useState<Tab>("search");
   // Tagged with the query they answer, so results for "pie" never show under "pierś".
   const [remote, setRemote] = useState<{ query: string; items: FoodItem[] }>({ query: "", items: [] });
   const [searching, setSearching] = useState(false);
@@ -156,10 +186,12 @@ export const AddFoodSheet = ({
 
   const listData = useMemo(() => {
     const source =
-      activeTab === "search" ? [...customProducts, ...FOOD_DB]
+      activeTab === "search" ? uniqueByKey([...favorites, ...customProducts, ...FOOD_DB])
+      : activeTab === "favorites" ? favorites
       : activeTab === "recent" ? recentFoods
       : customProducts;
-    if (tokens.length === 0) return activeTab === "search" ? FOOD_DB : source;
+    // Nothing typed yet: favorites first, so the daily product is one tap away.
+    if (tokens.length === 0) return activeTab === "search" ? uniqueByKey([...favorites, ...FOOD_DB]) : source;
 
     const local = source
       .map((food) => ({ food, score: matchScore(food.name, tokens) }))
@@ -177,10 +209,18 @@ export const AddFoodSheet = ({
       .sort((a, b) => b.hits - a.hits || a.index - b.index)
       .map((m) => m.food);
     return [...local, ...extra];
-  }, [activeTab, customProducts, recentFoods, remote, tokens, trimmed]);
+  }, [activeTab, customProducts, favorites, recentFoods, remote, tokens, trimmed]);
+
+  const favoriteKeys = useMemo(() => new Set(favorites.map(favoriteKey)), [favorites]);
 
   const title = isSection(section) ? `Dodaj do ${SECTION_GENITIVE[section]}` : "Dodaj posiłek";
   const needsMoreChars = activeTab === "search" && trimmed.length > 0 && trimmed.length < 3;
+
+  const confirmUnfavorite = (item: FoodItem) =>
+    Alert.alert("Usunąć z ulubionych?", `„${item.name}” zniknie z ulubionych. Wpisy w dzienniku zostają.`, [
+      { text: "Anuluj", style: "cancel" },
+      { text: "Usuń", style: "destructive", onPress: () => onRemoveFavorite(item) },
+    ]);
 
   const confirmDelete = (item: FoodItem) =>
     Alert.alert("Usunąć produkt?", `„${item.name}” zniknie z listy własnych produktów.`, [
@@ -207,11 +247,13 @@ export const AddFoodSheet = ({
       </View>
     ) : (
       <View style={s.empty}>
-        <Icon name={activeTab === "custom" ? "clipboard" : "search"} size={28} color={colors.muted} />
+        <Icon name={activeTab === "custom" ? "clipboard" : activeTab === "favorites" ? "heart" : "search"} size={28} color={colors.muted} />
         <Text style={s.emptyText}>
           {activeTab === "custom"
             ? "Brak własnych produktów. Stwórz taki, który jesz często, np. swoją owsiankę."
-            : activeTab === "recent"
+            : activeTab === "favorites"
+              ? "Stuknij serduszko przy produkcie (np. w wyniku skanu), a będzie tu czekał z Twoją zwykłą gramaturą."
+              : activeTab === "recent"
               ? "Tu pojawią się produkty dodane w ostatnich 7 dniach."
               : "Brak wyników"}
         </Text>
@@ -287,31 +329,43 @@ export const AddFoodSheet = ({
               <Text style={s.errorText}>{searchError}</Text>
             ) : null
           }
-          renderItem={({ item, index }) => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${item.name}, ${kcalLabel(item)}`}
-              accessibilityHint={item.custom ? "Przytrzymaj, aby usunąć" : undefined}
-              style={({ pressed }) => [s.foodRow, index > 0 && s.foodBorder, pressed && s.foodPressed]}
-              onPress={() => onSelectFood(item)}
-              onLongPress={item.custom ? () => confirmDelete(item) : undefined}
-            >
-              {item.imageUrl ? (
-                <Image source={{ uri: item.imageUrl }} style={s.foodImage} />
-              ) : (
-                <View style={s.foodIcon}>
-                  <Icon name={item.custom ? "clipboard" : item.code ? "barcode" : "utensils"} size={18} color={colors.mutedMid} />
+          renderItem={({ item, index }) => {
+            const favorite = favoriteKeys.has(favoriteKey(item));
+            // In the favorites tab a long press unfavorites; custom products
+            // keep their own delete elsewhere.
+            const onLongPress =
+              favorite && (activeTab === "favorites" || !item.custom) ? () => confirmUnfavorite(item)
+              : item.custom ? () => confirmDelete(item)
+              : undefined;
+            return (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${item.name}, ${rowDetail(item)}${favorite ? ", ulubiony" : ""}`}
+                accessibilityHint={onLongPress ? "Przytrzymaj, aby usunąć" : undefined}
+                style={({ pressed }) => [s.foodRow, index > 0 && s.foodBorder, pressed && s.foodPressed]}
+                onPress={() => onSelectFood(item)}
+                onLongPress={onLongPress}
+              >
+                {item.imageUrl ? (
+                  <Image source={{ uri: item.imageUrl }} style={s.foodImage} />
+                ) : (
+                  <View style={[s.foodIcon, favorite && s.foodIconFavorite]}>
+                    <Icon
+                      name={favorite ? "heart" : item.custom ? "clipboard" : item.code ? "barcode" : "utensils"}
+                      size={18}
+                      color={favorite ? colors.accent : colors.mutedMid}
+                    />
+                  </View>
+                )}
+                <View style={s.foodText}>
+                  <Text style={s.foodName} numberOfLines={1}>{item.name}</Text>
+                  <Text style={s.foodDetail} numberOfLines={1}>{rowDetail(item)}</Text>
                 </View>
-              )}
-              <View style={s.foodText}>
-                <Text style={s.foodName} numberOfLines={1}>{item.name}</Text>
-                <Text style={s.foodDetail} numberOfLines={1}>
-                  {item.detail === "100 g" ? kcalLabel(item) : `${item.detail} · ${kcalLabel(item)}`}
-                </Text>
-              </View>
-              <Icon name="chevron-right" size={18} color={colors.muted} />
-            </Pressable>
-          )}
+                {favorite && item.imageUrl ? <Icon name="heart" size={16} color={colors.accent} /> : null}
+                <Icon name="chevron-right" size={18} color={colors.muted} />
+              </Pressable>
+            );
+          }}
         />
       </View>
     </Sheet>
@@ -374,6 +428,7 @@ const s = StyleSheet.create({
   foodPressed: { backgroundColor: colors.cardHov },
   foodBorder: { borderTopColor: colors.border, borderTopWidth: 1 },
   foodIcon: { alignItems: "center", backgroundColor: colors.surfaceAlt, borderRadius: 10, height: 40, justifyContent: "center", width: 40 },
+  foodIconFavorite: { backgroundColor: colors.accentA },
   foodImage: { backgroundColor: colors.surfaceAlt, borderRadius: 10, height: 40, width: 40 },
   foodText: { flex: 1, minWidth: 0 },
   foodName: { ...typography.body, color: colors.text, fontFamily: fontFamilies.medium },

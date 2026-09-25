@@ -10,6 +10,7 @@ import { getSectionByTime, isSection, type Section } from "../../core/section";
 import { cacheMealsForDay, getCachedMealsForDay } from "../../data/mealRepository";
 import type { MealDraft, MealEntry } from "../../data/types";
 import { CUSTOM_PRODUCTS_KEY } from "../../data/developerRepository";
+import { draftToFavorite, useFavorites } from "../../data/favoritesRepository";
 import { useAuth } from "../../providers/AuthProvider";
 import { useMeals } from "../../providers/MealsProvider";
 import { useUserProfile } from "../../providers/UserProfileProvider";
@@ -27,6 +28,9 @@ export const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const { dateOffset, setDateOffset, selectedDate, addMeal } = useMeals();
   const toast = useToast();
+  // No toast on toggle: it would render under the open sheet. The heart
+  // changing colour is the feedback.
+  const { favorites, isFavorite, toggleFavorite } = useFavorites();
   const selectedKey = toDateKey(selectedDate);
   const [meals, setMeals] = useState<MealEntry[]>([]);
   const [customProducts, setCustomProducts] = useState<FoodItem[]>([]);
@@ -160,6 +164,8 @@ export const HomeScreen = () => {
             kcalPer100g: editingMeal.kcalPer100g,
             source: editingMeal.source,
             section: editingMeal.section,
+            barcode: editingMeal.barcode,
+            photoUrl: editingMeal.photoUrl,
           }
         : null,
     [editingMeal],
@@ -182,6 +188,8 @@ export const HomeScreen = () => {
         section={sheetSection}
         uid={user.uid}
         customProducts={customProducts}
+        favorites={favorites}
+        onRemoveFavorite={(item) => void toggleFavorite(item)}
         onClose={() => setAddFoodSection(null)}
         onSelectFood={setSelectedFood}
         onDeleteCustom={(item) => void saveCustomProducts(customProducts.filter((p) => p.id !== item.id))}
@@ -208,6 +216,8 @@ export const HomeScreen = () => {
         food={selectedFood}
         section={sheetSection}
         lastAmounts={lastAmountsRef.current}
+        favorite={selectedFood ? isFavorite(selectedFood) : false}
+        onToggleFavorite={(food, amount) => void toggleFavorite({ ...food, defaultAmount: amount })}
         onClose={() => setSelectedFood(null)}
         onAdd={handleAddConfirm}
       />
@@ -239,6 +249,8 @@ export const HomeScreen = () => {
         visible={editingMeal !== null}
         draft={editDraft}
         editingMealId={editingMeal?.id}
+        favorite={editingMeal ? isFavorite({ code: editingMeal.barcode, name: editingMeal.name }) : false}
+        onToggleFavorite={(current) => void toggleFavorite(draftToFavorite(current))}
         onClose={() => setEditingMeal(null)}
         onConfirm={handleEditMealSave}
         onDelete={handleEditMealDelete}

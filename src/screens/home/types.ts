@@ -12,4 +12,6 @@ export type FoodItem = {
   oneTime?: boolean;
   code?: string;
   imageUrl?: string | null;
+  // Favorites remember the usual amount (grams, or portions when !per100).
+  defaultAmount?: number;
 };
