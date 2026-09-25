@@ -21,6 +21,7 @@ export type IconName =
   | "flash-on"
   | "flash-off"
   | "gauge"
+  | "heart"
   | "image"
   | "info"
   | "logout"
@@ -65,6 +66,7 @@ const symbols: Record<IconName, string> = {
   "flash-on": "flashlight_on",
   "flash-off": "flashlight_off",
   gauge: "speed",
+  heart: "favorite",
   image: "image",
   info: "info",
   logout: "logout",

@@ -18,6 +18,7 @@ import {
   seedDemoData,
   WEIGHTS_KEY,
 } from "../data/developerRepository";
+import { FAVORITES_KEY } from "../data/favoritesRepository";
 import { clearProgressPhotos } from "../data/progressPhotoRepository";
 import type { ActivityLevel, DeveloperSettings, GoalType } from "../data/types";
 import { getWeights } from "../data/weightRepository";
@@ -117,13 +118,13 @@ export const ProfileScreen = () => {
   const clearAll = () =>
     confirm(
       "Wyczyścić dane?",
-      "Usunięte zostaną wszystkie posiłki, pomiary, zdjęcia i własne produkty. Tej operacji nie można cofnąć.",
+      "Usunięte zostaną wszystkie posiłki, pomiary, zdjęcia, własne i ulubione produkty. Tej operacji nie można cofnąć.",
       "Wyczyść",
       async () => {
         try {
           const keys = await AsyncStorage.getAllKeys();
           const mealKeys = keys.filter((k) => k.startsWith("ritatu:meals:"));
-          await AsyncStorage.multiRemove([...mealKeys, WEIGHTS_KEY, CUSTOM_PRODUCTS_KEY]);
+          await AsyncStorage.multiRemove([...mealKeys, WEIGHTS_KEY, CUSTOM_PRODUCTS_KEY, FAVORITES_KEY]);
           await clearProgressPhotos();
           show({ tone: "ok", text: "Wyczyszczono dane.", at: "tools" });
         } catch (e) { toolError(e); }

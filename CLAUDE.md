@@ -43,6 +43,7 @@ Expo Router with file-based routing. Files in `app/` are thin re-exports; all lo
 - `src/data/progressPhotoRepository.ts` — progress photo metadata; files are copied into `Paths.document/progress-photos`
 - `src/data/developerRepository.ts` — dev settings, `CUSTOM_PRODUCTS_KEY`, `WEIGHTS_KEY`, demo seed
 - `src/data/csvExport.ts` — meals / days CSV export
+- `src/data/favoritesRepository.ts` — favorites (`FoodItem[]` keyed by barcode or normalized name, with the usual `defaultAmount`) and the `useFavorites()` hook; hearts live in `FoodDetailSheet` and `MacroConfirmSheet`, favorites list first in `AddFoodSheet` and in its Ulubione tab
 
 ### Auth
 None: the app is local and single-user. `useAuth()` returns a constant `LocalUser` with `uid: "user"`; every storage key uses it, so it must never change.

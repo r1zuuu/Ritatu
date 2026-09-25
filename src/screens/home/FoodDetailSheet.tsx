@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button } from "../../components/Button";
+import { FavoriteButton } from "../../components/FavoriteButton";
 import { Icon } from "../../components/Icon";
 import { IconButton } from "../../components/IconButton";
 import { Sheet } from "../../components/Sheet";
@@ -30,18 +31,22 @@ type Props = {
   food: FoodItem | null;
   section: string;
   lastAmounts: Map<string | number, string>;
+  favorite: boolean;
   onClose: () => void;
   onAdd: (food: FoodItem, amount: number) => Promise<void>;
+  // Gets the amount on screen, so the favorite remembers the usual portion.
+  onToggleFavorite: (food: FoodItem, amount: number) => void;
 };
 
-export const FoodDetailSheet = ({ visible, food, section, lastAmounts, onClose, onAdd }: Props) => {
+export const FoodDetailSheet = ({ visible, food, section, lastAmounts, favorite, onClose, onAdd, onToggleFavorite }: Props) => {
   const [amountInput, setAmountInput] = useState("100");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!food) return;
     const saved = lastAmounts.get(food.id);
-    setAmountInput(saved ?? (food.per100 ? "100" : "1"));
+    const usual = food.defaultAmount ? formatDecimal(food.defaultAmount, food.per100 ? 0 : 1) : null;
+    setAmountInput(saved ?? usual ?? (food.per100 ? "100" : "1"));
     setSaving(false);
   }, [food]);
 
@@ -104,6 +109,7 @@ export const FoodDetailSheet = ({ visible, food, section, lastAmounts, onClose, 
               {food.calories} kcal {food.per100 ? "/ 100 g" : `/ porcja (${portionW} g)`}
             </Text>
           </View>
+          <FavoriteButton active={favorite} onPress={() => onToggleFavorite(food, hasValidAmount ? amount : food.defaultAmount ?? 100)} />
         </View>
 
         <View style={s.kcalBlock}>
